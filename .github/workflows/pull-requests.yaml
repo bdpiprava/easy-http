@@ -1,0 +1,37 @@
+name: "PR: Checks"
+
+on:
+  pull_request:
+    branches:
+      - master
+      - main
+
+jobs:
+  go-lint:
+    name: "GoLang Lint"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          go-version-file: go.mod
+          version: v1.64.6
+
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install dependencies
+        run: make deps
+
+      - name: Run tests
+        run: make tests
