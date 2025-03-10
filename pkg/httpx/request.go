@@ -2,10 +2,10 @@ package httpx
 
 import (
 	"context"
+	"maps"
 	"net/http"
 	"net/url"
 	"path"
-	"maps"
 )
 
 var supportedMethods = map[string]bool{

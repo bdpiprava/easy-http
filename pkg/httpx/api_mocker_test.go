@@ -40,7 +40,7 @@ func (m *mockServer) SetupMock(method, endpoint string, status int, body string)
 		}
 
 		w.WriteHeader(status)
-		w.Write([]byte(body))
+		_, _ = w.Write([]byte(body))
 	})
 }
 

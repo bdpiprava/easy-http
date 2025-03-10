@@ -71,7 +71,7 @@ func (s *RequestTestSuite) run(testCases []testCase, caller func(opts ...httpx.R
 			s.Require().Equal(tc.wantResponse, resp.Body)
 			if tc.wantErr != "" {
 				s.Require().Error(err)
-				s.EqualError(err, tc.wantErr)
+				s.Require().EqualError(err, tc.wantErr)
 				s.Require().Equal(tc.wantRawBody, string(resp.RawBody))
 			}
 		})
