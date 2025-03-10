@@ -21,7 +21,7 @@ build:
 deps:
 	@go mod tidy
 	@go mod vendor
-	@go get .
+	@go mod download
 
 ## Install the binary
 install:
