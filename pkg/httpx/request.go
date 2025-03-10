@@ -42,7 +42,7 @@ func WithBaseURL(baseURL string) RequestOption {
 	}
 }
 
-// WithPath is a function that sets the base URL for the request
+// WithPath is a function that sets the path for the request
 func WithPath(paths ...string) RequestOption {
 	return func(c *RequestOptions) {
 		c.Path = path.Join(paths...)
