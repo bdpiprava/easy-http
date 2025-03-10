@@ -16,7 +16,8 @@ jobs:
       - name: Run lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.62.0
+          go-version-file: go.mod
+          version: v1.64.6
 
   tests:
     name: Tests
