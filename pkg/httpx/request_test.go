@@ -2,10 +2,13 @@ package httpx_test
 
 import (
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/bdpiprava/easy-http/pkg/httpx"
@@ -106,5 +109,92 @@ func getTestCases(method string) []testCase {
 			wantErr:        "failed to unmarshal response as type map[string]interface {}: invalid character 'o' in literal null (expecting 'u')",
 			wantRawBody:    `not-a-json`,
 		},
+	}
+}
+
+func (s *RequestTestSuite) Test_RequestOpts() {
+	testCases := []struct {
+		name     string
+		opts     []httpx.RequestOption
+		assertFn func(*http.Request)
+	}{
+		{
+			name: "WithBaseURL",
+			opts: []httpx.RequestOption{httpx.WithBaseURL("http://localhost:8080")},
+			assertFn: func(req *http.Request) {
+				assert.Equal(s.T(), "http://localhost:8080", req.URL.String())
+			},
+		},
+		{
+			name: "WithPath",
+			opts: []httpx.RequestOption{httpx.WithPath("/api/v1", "test")},
+			assertFn: func(req *http.Request) {
+				assert.Equal(s.T(), "/api/v1/test", req.URL.Path)
+			},
+		},
+		{
+			name: "WithQueryParam",
+			opts: []httpx.RequestOption{httpx.WithQueryParam("region", "us")},
+			assertFn: func(req *http.Request) {
+				assert.Equal(s.T(), "us", req.URL.Query().Get("region"))
+			},
+		},
+		{
+			name: "WithHeader",
+			opts: []httpx.RequestOption{httpx.WithHeader("Authorization", "Bearer abcd")},
+			assertFn: func(req *http.Request) {
+				assert.Equal(s.T(), "Bearer abcd", req.Header.Get("Authorization"))
+			},
+		},
+		{
+			name: "WithHeaders",
+			opts: []httpx.RequestOption{httpx.WithHeaders(http.Header{
+				"Accept":       []string{"application/json"},
+				"Content-Type": []string{"application/csv"},
+			})},
+			assertFn: func(req *http.Request) {
+				assert.Equal(s.T(), "application/csv", req.Header.Get("Content-Type"))
+				assert.Equal(s.T(), "application/json", req.Header.Get("Accept"))
+			},
+		},
+		{
+			name: "WithQueryParams",
+			opts: []httpx.RequestOption{httpx.WithQueryParams(map[string][]string{
+				"region": {"us"},
+				"env":    {"prod"},
+			})},
+			assertFn: func(req *http.Request) {
+				assert.Equal(s.T(), "us", req.URL.Query().Get("region"))
+				assert.Equal(s.T(), "prod", req.URL.Query().Get("env"))
+			},
+		},
+		{
+			name: "WithBody",
+			opts: []httpx.RequestOption{httpx.WithBody(strings.NewReader("test"))},
+			assertFn: func(req *http.Request) {
+				content, err := io.ReadAll(req.Body)
+				assert.NoError(s.T(), err)
+				assert.Equal(s.T(), "test", string(content))
+			},
+		},
+		{
+			name: "WithJSONBody",
+			opts: []httpx.RequestOption{httpx.WithJSONBody(map[string]any{"name": "test"})},
+			assertFn: func(req *http.Request) {
+				content, err := io.ReadAll(req.Body)
+				assert.NoError(s.T(), err)
+				assert.Equal(s.T(), `{"name":"test"}`, string(content))
+				assert.Equal(s.T(), "application/json", req.Header.Get("Content-Type"))
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		s.Run(tc.name, func() {
+			req, err := httpx.NewRequest("GET", tc.opts...).ToHttpReq(httpx.ClientOptions{})
+
+			tc.assertFn(req)
+			assert.NoError(s.T(), err)
+		})
 	}
 }

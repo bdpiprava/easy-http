@@ -1,11 +1,18 @@
 package httpx
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"io"
+	"log"
 	"maps"
 	"net/http"
 	"net/url"
 	"path"
+	"strings"
+
+	"github.com/pkg/errors"
 )
 
 var supportedMethods = map[string]bool{
@@ -100,6 +107,27 @@ func WithContext(ctx context.Context) RequestOption {
 	}
 }
 
+// WithBody is a function that sets the body for the request
+func WithBody(body io.Reader) RequestOption {
+	return func(c *RequestOptions) {
+		c.Body = body
+	}
+}
+
+// WithBody is a function that sets the body for the request
+func WithJSONBody(body any) RequestOption {
+	return func(c *RequestOptions) {
+		content, err := json.Marshal(body)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+
+		c.Headers.Set("Content-Type", "application/json")
+		c.Body = bytes.NewReader(content)
+	}
+}
+
 // GET is a function that sends a GET request
 func GET[T any](opts ...RequestOption) (*Response, error) {
 	req := NewRequest(http.MethodGet, opts...)
@@ -122,4 +150,51 @@ func PUT[T any](opts ...RequestOption) (*Response, error) {
 func DELETE[T any](opts ...RequestOption) (*Response, error) {
 	req := NewRequest(http.MethodDelete, opts...)
 	return defaultClient.Execute(*req, *(new(T)))
+}
+
+// ToHttpReq is a function that converts the request to an native http request
+func (r *Request) ToHttpReq(clientOpts ClientOptions) (*http.Request, error) {
+	opts := buildOpts(clientOpts, r)
+	return buildRequest(opts)
+}
+
+// buildRequest is a function that builds the request from the given options
+func buildRequest(opts RequestOptions) (*http.Request, error) {
+	if _, ok := supportedMethods[strings.ToUpper(opts.Method)]; !ok {
+		return nil, errors.Errorf("unsupported method: %s", opts.Method)
+	}
+
+	req, err := http.NewRequest(opts.Method, opts.BaseURL, opts.Body)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create request")
+	}
+
+	if opts.Context != nil {
+		req = req.WithContext(opts.Context)
+	}
+	req.URL.Path = path.Join(req.URL.Path, opts.Path)
+	req.Header = opts.Headers
+	req.URL.RawQuery = opts.QueryParams.Encode()
+
+	return req, nil
+}
+
+// buildOpts is a function that builds the request options
+func buildOpts(clientOpts ClientOptions, request *Request) RequestOptions {
+	opts := RequestOptions{
+		Headers:     http.Header{},
+		BaseURL:     clientOpts.BaseURL,
+		Timeout:     clientOpts.Timeout,
+		Method:      http.MethodGet,
+		QueryParams: url.Values{},
+	}
+
+	if clientOpts.Headers != nil {
+		maps.Copy(opts.Headers, clientOpts.Headers)
+	}
+
+	for _, opt := range request.opts {
+		opt(&opts)
+	}
+	return opts
 }

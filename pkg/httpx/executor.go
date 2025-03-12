@@ -1,13 +1,6 @@
 package httpx
 
 import (
-	"net/http"
-	"net/url"
-	"path"
-	"strings"
-
-	"maps"
-
 	"github.com/pkg/errors"
 )
 
@@ -17,8 +10,7 @@ func execute(client *Client, request *Request, respType any) (*Response, error) 
 		return nil, errors.New("response type cannot be nil")
 	}
 
-	opts := buildOpts(client.clientOptions, request)
-	req, err := buildRequest(opts)
+	req, err := request.ToHttpReq(client.clientOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -29,45 +21,4 @@ func execute(client *Client, request *Request, respType any) (*Response, error) 
 	}
 
 	return newResponse(resp, respType)
-}
-
-// buildRequest is a function that builds the request from the given options
-func buildRequest(opts RequestOptions) (*http.Request, error) {
-	if _, ok := supportedMethods[strings.ToUpper(opts.Method)]; !ok {
-		return nil, errors.Errorf("unsupported method: %s", opts.Method)
-	}
-
-	req, err := http.NewRequest(opts.Method, opts.BaseURL, opts.Body)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to create request")
-	}
-
-	if opts.Context != nil {
-		req = req.WithContext(opts.Context)
-	}
-	req.URL.Path = path.Join(req.URL.Path, opts.Path)
-	req.Header = opts.Headers
-	req.URL.RawQuery = opts.QueryParams.Encode()
-
-	return req, nil
-}
-
-// buildOpts is a function that builds the request options
-func buildOpts(clientOpts ClientOptions, request *Request) RequestOptions {
-	opts := RequestOptions{
-		Headers:     http.Header{},
-		BaseURL:     clientOpts.BaseURL,
-		Timeout:     clientOpts.Timeout,
-		Method:      http.MethodGet,
-		QueryParams: url.Values{},
-	}
-
-	if clientOpts.Headers != nil {
-		maps.Copy(opts.Headers, clientOpts.Headers)
-	}
-
-	for _, opt := range request.opts {
-		opt(&opts)
-	}
-	return opts
 }
