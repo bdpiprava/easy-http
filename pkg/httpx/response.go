@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 
 	"github.com/pkg/errors"
 )
@@ -40,6 +41,11 @@ func newResponse(httpResp *http.Response, bType any) (*Response, error) {
 
 	if httpResp.StatusCode > 299 {
 		response.Body = tryParsingErrorResponse(bodyBytes)
+		return response, nil
+	}
+
+	if reflect.TypeOf(bType).Kind() == reflect.String {
+		response.Body = string(bodyBytes)
 		return response, nil
 	}
 
