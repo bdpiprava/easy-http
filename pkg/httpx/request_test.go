@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/bdpiprava/easy-http/pkg/httpx"
@@ -122,28 +121,28 @@ func (s *RequestTestSuite) Test_RequestOpts() {
 			name: "WithBaseURL",
 			opts: []httpx.RequestOption{httpx.WithBaseURL("http://localhost:8080")},
 			assertFn: func(req *http.Request) {
-				assert.Equal(s.T(), "http://localhost:8080", req.URL.String())
+				s.Equal("http://localhost:8080", req.URL.String())
 			},
 		},
 		{
 			name: "WithPath",
 			opts: []httpx.RequestOption{httpx.WithPath("/api/v1", "test")},
 			assertFn: func(req *http.Request) {
-				assert.Equal(s.T(), "/api/v1/test", req.URL.Path)
+				s.Equal("/api/v1/test", req.URL.Path)
 			},
 		},
 		{
 			name: "WithQueryParam",
 			opts: []httpx.RequestOption{httpx.WithQueryParam("region", "us")},
 			assertFn: func(req *http.Request) {
-				assert.Equal(s.T(), "us", req.URL.Query().Get("region"))
+				s.Equal("us", req.URL.Query().Get("region"))
 			},
 		},
 		{
 			name: "WithHeader",
 			opts: []httpx.RequestOption{httpx.WithHeader("Authorization", "Bearer abcd")},
 			assertFn: func(req *http.Request) {
-				assert.Equal(s.T(), "Bearer abcd", req.Header.Get("Authorization"))
+				s.Equal("Bearer abcd", req.Header.Get("Authorization"))
 			},
 		},
 		{
@@ -153,8 +152,8 @@ func (s *RequestTestSuite) Test_RequestOpts() {
 				"Content-Type": []string{"application/csv"},
 			})},
 			assertFn: func(req *http.Request) {
-				assert.Equal(s.T(), "application/csv", req.Header.Get("Content-Type"))
-				assert.Equal(s.T(), "application/json", req.Header.Get("Accept"))
+				s.Equal("application/csv", req.Header.Get("Content-Type"))
+				s.Equal("application/json", req.Header.Get("Accept"))
 			},
 		},
 		{
@@ -164,8 +163,8 @@ func (s *RequestTestSuite) Test_RequestOpts() {
 				"env":    {"prod"},
 			})},
 			assertFn: func(req *http.Request) {
-				assert.Equal(s.T(), "us", req.URL.Query().Get("region"))
-				assert.Equal(s.T(), "prod", req.URL.Query().Get("env"))
+				s.Equal("us", req.URL.Query().Get("region"))
+				s.Equal("prod", req.URL.Query().Get("env"))
 			},
 		},
 		{
@@ -173,8 +172,8 @@ func (s *RequestTestSuite) Test_RequestOpts() {
 			opts: []httpx.RequestOption{httpx.WithBody(strings.NewReader("test"))},
 			assertFn: func(req *http.Request) {
 				content, err := io.ReadAll(req.Body)
-				assert.NoError(s.T(), err)
-				assert.Equal(s.T(), "test", string(content))
+				s.Require().NoError(err)
+				s.Equal("test", string(content))
 			},
 		},
 		{
@@ -182,9 +181,9 @@ func (s *RequestTestSuite) Test_RequestOpts() {
 			opts: []httpx.RequestOption{httpx.WithJSONBody(map[string]any{"name": "test"})},
 			assertFn: func(req *http.Request) {
 				content, err := io.ReadAll(req.Body)
-				assert.NoError(s.T(), err)
-				assert.Equal(s.T(), `{"name":"test"}`, string(content))
-				assert.Equal(s.T(), "application/json", req.Header.Get("Content-Type"))
+				s.Require().NoError(err)
+				s.JSONEq(`{"name":"test"}`, string(content))
+				s.Equal("application/json", req.Header.Get("Content-Type"))
 			},
 		},
 	}
@@ -194,7 +193,7 @@ func (s *RequestTestSuite) Test_RequestOpts() {
 			req, err := httpx.NewRequest("GET", tc.opts...).ToHTTPReq(httpx.ClientOptions{})
 
 			tc.assertFn(req)
-			assert.NoError(s.T(), err)
+			s.Require().NoError(err)
 		})
 	}
 }
