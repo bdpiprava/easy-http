@@ -191,7 +191,7 @@ func (s *RequestTestSuite) Test_RequestOpts() {
 
 	for _, tc := range testCases {
 		s.Run(tc.name, func() {
-			req, err := httpx.NewRequest("GET", tc.opts...).ToHttpReq(httpx.ClientOptions{})
+			req, err := httpx.NewRequest("GET", tc.opts...).ToHTTPReq(httpx.ClientOptions{})
 
 			tc.assertFn(req)
 			assert.NoError(s.T(), err)

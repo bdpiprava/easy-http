@@ -152,8 +152,8 @@ func DELETE[T any](opts ...RequestOption) (*Response, error) {
 	return defaultClient.Execute(*req, *(new(T)))
 }
 
-// ToHttpReq is a function that converts the request to an native http request
-func (r *Request) ToHttpReq(clientOpts ClientOptions) (*http.Request, error) {
+// ToHTTPReq is a function that converts the request to an native http request
+func (r *Request) ToHTTPReq(clientOpts ClientOptions) (*http.Request, error) {
 	opts := buildOpts(clientOpts, r)
 	return buildRequest(opts)
 }

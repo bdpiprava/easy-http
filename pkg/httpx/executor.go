@@ -10,7 +10,7 @@ func execute(client *Client, request *Request, respType any) (*Response, error) 
 		return nil, errors.New("response type cannot be nil")
 	}
 
-	req, err := request.ToHttpReq(client.clientOptions)
+	req, err := request.ToHTTPReq(client.clientOptions)
 	if err != nil {
 		return nil, err
 	}
