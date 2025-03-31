@@ -98,4 +98,4 @@ Open issues or pull requests for improvements or bug fixes.
 
 ## License
 
-See the included licenses of any third-party libraries for details.  
+- [Apache License 2.0](./LICENSE)
