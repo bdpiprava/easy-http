@@ -17,7 +17,6 @@ jobs:
         uses: golangci/golangci-lint-action@v7
         with:
           go-version-file: go.mod
-          version: v1.64.6
 
   tests:
     name: Tests
