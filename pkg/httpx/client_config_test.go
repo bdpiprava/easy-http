@@ -246,11 +246,11 @@ func TestBasicAuthSupport(t *testing.T) {
 			setupClient: func() *httpx.Client {
 				return httpx.NewClient(
 					httpx.WithDefaultBaseURL(server.URL),
-					// Note: BasicAuth support needs to be added to old architecture
+					httpx.WithDefaultBasicAuth("olduser", "oldpass"),
 				)
 			},
-			expectedStatus: http.StatusUnauthorized, // No basic auth in old architecture yet
-			expectedUser:   "",
+			expectedStatus: http.StatusOK,
+			expectedUser:   "olduser",
 		},
 	}
 

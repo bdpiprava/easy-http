@@ -162,6 +162,16 @@ func WithJSONBody(body any) RequestOption {
 	}
 }
 
+// WithBasicAuth is a function that sets basic authentication for the request
+func WithBasicAuth(username, password string) RequestOption {
+	return func(c *RequestOptions) {
+		c.BasicAuth = BasicAuth{
+			Username: username,
+			Password: password,
+		}
+	}
+}
+
 // WithStreaming is a function that enables streaming mode for the response
 // In streaming mode, the response body is not read into memory and must be
 // manually closed by the caller using Response.StreamBody.Close()

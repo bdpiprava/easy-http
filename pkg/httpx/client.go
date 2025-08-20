@@ -131,6 +131,16 @@ func WithLogLevel(level slog.Level) ClientOption {
 	}
 }
 
+// WithDefaultBasicAuth is a function that sets default basic authentication for the client
+func WithDefaultBasicAuth(username, password string) ClientOption {
+	return func(c *ClientOptions) {
+		c.BasicAuth = BasicAuth{
+			Username: username,
+			Password: password,
+		}
+	}
+}
+
 // New ClientConfigOption functions for improved architecture
 
 // WithClientTimeout sets the default timeout for all requests
