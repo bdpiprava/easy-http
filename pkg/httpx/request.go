@@ -225,6 +225,11 @@ func buildRequest(opts RequestOptions) (*http.Request, error) {
 	req.Header = opts.Headers
 	req.URL.RawQuery = opts.QueryParams.Encode()
 
+	// Apply basic auth if specified
+	if opts.BasicAuth.Username != "" || opts.BasicAuth.Password != "" {
+		req.SetBasicAuth(opts.BasicAuth.Username, opts.BasicAuth.Password)
+	}
+
 	return req, nil
 }
 
@@ -246,6 +251,70 @@ func buildOpts(clientOpts ClientOptions, request *Request) RequestOptions {
 		opt(&opts)
 	}
 	return opts
+}
+
+// buildOptsFromConfig builds request options using the new configuration architecture
+func buildOptsFromConfig(clientConfig ClientConfig, request *Request) RequestOptions {
+	// Start with request-specific config
+	requestConfig := RequestConfig{
+		Method:      http.MethodGet,
+		Headers:     make(http.Header),
+		QueryParams: make(url.Values),
+	}
+
+	// Apply request options to config
+	for _, opt := range request.opts {
+		// Convert old RequestOption to new format by applying to a temporary RequestOptions
+		// and then converting back to RequestConfig
+		tempOpts := RequestOptions{
+			Headers:     make(http.Header),
+			QueryParams: make(url.Values),
+		}
+		opt(&tempOpts)
+
+		// Transfer from tempOpts to requestConfig
+		if tempOpts.Method != "" {
+			requestConfig.Method = tempOpts.Method
+		}
+		if tempOpts.BaseURL != "" {
+			requestConfig.BaseURL = tempOpts.BaseURL
+		}
+		if tempOpts.Path != "" {
+			requestConfig.Path = tempOpts.Path
+		}
+		if len(tempOpts.Headers) > 0 {
+			for key, values := range tempOpts.Headers {
+				requestConfig.Headers[key] = values
+			}
+		}
+		if len(tempOpts.QueryParams) > 0 {
+			for key, values := range tempOpts.QueryParams {
+				requestConfig.QueryParams[key] = values
+			}
+		}
+		if tempOpts.Body != nil {
+			requestConfig.Body = tempOpts.Body
+		}
+		if tempOpts.Context != nil {
+			requestConfig.Context = tempOpts.Context
+		}
+		if tempOpts.Timeout != 0 {
+			requestConfig.Timeout = tempOpts.Timeout
+		}
+		if tempOpts.BasicAuth.Username != "" || tempOpts.BasicAuth.Password != "" {
+			requestConfig.BasicAuth = tempOpts.BasicAuth
+		}
+		if tempOpts.Error != nil {
+			requestConfig.Error = tempOpts.Error
+		}
+		requestConfig.Streaming = tempOpts.Streaming
+	}
+
+	// Merge with client defaults
+	requestConfig.MergeWithDefaults(clientConfig)
+
+	// Convert back to RequestOptions for backward compatibility
+	return requestConfig.ToRequestOptions()
 }
 
 // validateURL validates if the provided URL is valid

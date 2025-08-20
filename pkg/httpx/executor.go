@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"path"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -16,28 +18,53 @@ func execute(client *Client, request *Request, respType any) (*Response, error) 
 	}
 
 	// Build request options to check for streaming mode
-	requestOpts := buildOpts(client.clientOptions, request)
+	// Use new config architecture if available, fall back to old for compatibility
+	var requestOpts RequestOptions
+	if client.config.Timeout != 0 || client.config.Logger != nil {
+		// Client was created with new architecture
+		requestOpts = buildOptsFromConfig(client.config, request)
+	} else {
+		// Client was created with old architecture
+		requestOpts = buildOpts(client.clientOptions, request)
+	}
 
-	req, err := request.ToHTTPReq(client.clientOptions)
+	// Build HTTP request using appropriate architecture
+	var req *http.Request
+	var err error
+	var logger *slog.Logger
+	var logLevel slog.Level
+
+	if client.config.Timeout != 0 || client.config.Logger != nil {
+		// Client was created with new architecture
+		req, err = buildRequestFromConfig(requestOpts)
+		logger = client.config.Logger
+		logLevel = client.config.LogLevel
+	} else {
+		// Client was created with old architecture
+		req, err = request.ToHTTPReq(client.clientOptions)
+		logger = client.clientOptions.Logger
+		logLevel = client.clientOptions.LogLevel
+	}
+
 	if err != nil {
-		logError(client.clientOptions.Logger, "Failed to build HTTP request", err, req)
+		logError(logger, "Failed to build HTTP request", err, req)
 		return nil, err
 	}
 
 	// Log the outgoing request
-	logRequest(client.clientOptions.Logger, client.clientOptions.LogLevel, req)
+	logRequest(logger, logLevel, req)
 
 	start := time.Now()
 	resp, err := client.client.Do(req)
 	duration := time.Since(start)
 
 	if err != nil {
-		logError(client.clientOptions.Logger, "Failed to execute HTTP request", err, req)
+		logError(logger, "Failed to execute HTTP request", err, req)
 		return nil, errors.Wrap(err, "failed to execute request")
 	}
 
 	// Log the response
-	logResponse(client.clientOptions.Logger, client.clientOptions.LogLevel, resp, duration)
+	logResponse(logger, logLevel, resp, duration)
 
 	return newResponse(resp, respType, requestOpts.Streaming)
 }
@@ -77,6 +104,38 @@ func logResponse(logger *slog.Logger, minLevel slog.Level, resp *http.Response, 
 		slog.String("content_length", resp.Header.Get("Content-Length")),
 		slog.String("content_type", resp.Header.Get("Content-Type")),
 	)
+}
+
+// buildRequestFromConfig builds an HTTP request using the new configuration architecture
+func buildRequestFromConfig(opts RequestOptions) (*http.Request, error) {
+	// Check for errors that occurred during option processing
+	if opts.Error != nil {
+		return nil, opts.Error
+	}
+
+	if _, ok := supportedMethods[strings.ToUpper(opts.Method)]; !ok {
+		return nil, errors.Errorf("unsupported method: %s", opts.Method)
+	}
+
+	ctx := opts.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	req, err := http.NewRequestWithContext(ctx, opts.Method, opts.BaseURL, opts.Body)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create request")
+	}
+
+	req.URL.Path = path.Join(req.URL.Path, opts.Path)
+	req.Header = opts.Headers
+	req.URL.RawQuery = opts.QueryParams.Encode()
+
+	// Apply basic auth if specified
+	if opts.BasicAuth.Username != "" || opts.BasicAuth.Password != "" {
+		req.SetBasicAuth(opts.BasicAuth.Username, opts.BasicAuth.Password)
+	}
+
+	return req, nil
 }
 
 // logError logs errors with structured logging and request context

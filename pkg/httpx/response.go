@@ -56,17 +56,23 @@ func newResponse(httpResp *http.Response, bType any, streaming bool) (*Response,
 		return response, nil
 	}
 
-	if reflect.TypeOf(bType).Kind() == reflect.String {
+	bTypeReflected := reflect.TypeOf(bType)
+	if bTypeReflected.Kind() == reflect.String {
 		response.Body = string(bodyBytes)
 		return response, nil
 	}
 
-	err = json.Unmarshal(bodyBytes, &bType)
+	// Create a new instance of the underlying type for proper JSON unmarshaling
+	targetType := reflect.TypeOf(bType)
+	targetValue := reflect.New(targetType).Interface()
+
+	err = json.Unmarshal(bodyBytes, targetValue)
 	if err != nil {
 		return response, errors.Wrapf(err, "failed to unmarshal response as type %T", bType)
 	}
 
-	response.Body = bType
+	// Dereference the pointer to get the actual value
+	response.Body = reflect.ValueOf(targetValue).Elem().Interface()
 	return response, nil
 }
 
