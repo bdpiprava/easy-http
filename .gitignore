@@ -2,3 +2,4 @@
 coverage.out
 vendor
 .vscode
+.claude
