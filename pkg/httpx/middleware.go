@@ -9,7 +9,7 @@ import (
 type Middleware interface {
 	// Name returns a unique identifier for this middleware
 	Name() string
-	
+
 	// Execute processes the request and delegates to the next middleware or final handler
 	Execute(ctx context.Context, req *http.Request, next MiddlewareFunc) (*http.Response, error)
 }
@@ -42,10 +42,10 @@ func (c *MiddlewareChain) Execute(ctx context.Context, req *http.Request) (*http
 	if len(c.middlewares) == 0 {
 		return c.finalFunc(ctx, req)
 	}
-	
+
 	// Build the chain by wrapping each middleware around the next
 	var current MiddlewareFunc = c.finalFunc
-	
+
 	// Start from the end and work backwards to build the chain
 	for i := len(c.middlewares) - 1; i >= 0; i-- {
 		middleware := c.middlewares[i]
@@ -54,7 +54,7 @@ func (c *MiddlewareChain) Execute(ctx context.Context, req *http.Request) (*http
 			return middleware.Execute(ctx, req, next)
 		}
 	}
-	
+
 	return current(ctx, req)
 }
 
@@ -112,10 +112,10 @@ func (m *InterceptorMiddleware) Execute(ctx context.Context, req *http.Request, 
 			}
 		}
 	}
-	
+
 	// Execute the next middleware/handler
 	resp, err := next(ctx, req)
-	
+
 	// Handle errors with error interceptors
 	if err != nil {
 		for _, interceptor := range m.interceptors {
@@ -127,7 +127,7 @@ func (m *InterceptorMiddleware) Execute(ctx context.Context, req *http.Request, 
 		}
 		return nil, err
 	}
-	
+
 	// Execute response interceptors
 	for _, interceptor := range m.interceptors {
 		if respInterceptor, ok := interceptor.(ResponseInterceptor); ok {
@@ -140,6 +140,6 @@ func (m *InterceptorMiddleware) Execute(ctx context.Context, req *http.Request, 
 			}
 		}
 	}
-	
+
 	return resp, nil
 }

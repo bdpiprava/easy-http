@@ -31,28 +31,28 @@ type RetryCondition func(attempt int, err error, resp *http.Response) bool
 type RetryPolicy struct {
 	// MaxAttempts is the maximum number of attempts (including the initial request)
 	MaxAttempts int
-	
+
 	// BaseDelay is the base delay between retries
 	BaseDelay time.Duration
-	
+
 	// MaxDelay is the maximum delay between retries
 	MaxDelay time.Duration
-	
+
 	// Strategy defines how delays are calculated
 	Strategy RetryStrategy
-	
+
 	// Multiplier is used for exponential and linear strategies (default: 2.0 for exponential)
 	Multiplier float64
-	
+
 	// JitterMax adds random jitter up to this duration (only for jitter strategy)
 	JitterMax time.Duration
-	
+
 	// Condition determines if a request should be retried
 	Condition RetryCondition
-	
+
 	// RetryableStatusCodes defines which HTTP status codes should trigger retries
 	RetryableStatusCodes []int
-	
+
 	// RetryableErrorTypes defines which error types should trigger retries
 	RetryableErrorTypes []ErrorType
 }
@@ -61,12 +61,12 @@ type RetryPolicy struct {
 func DefaultRetryPolicy() RetryPolicy {
 	return RetryPolicy{
 		MaxAttempts:          3,
-		BaseDelay:           100 * time.Millisecond,
-		MaxDelay:            5 * time.Second,
-		Strategy:            RetryStrategyExponential,
-		Multiplier:          2.0,
-		JitterMax:           0,
-		Condition:           AdvancedDefaultRetryCondition,
+		BaseDelay:            100 * time.Millisecond,
+		MaxDelay:             5 * time.Second,
+		Strategy:             RetryStrategyExponential,
+		Multiplier:           2.0,
+		JitterMax:            0,
+		Condition:            AdvancedDefaultRetryCondition,
 		RetryableStatusCodes: []int{500, 502, 503, 504, 429}, // Server errors and rate limiting
 		RetryableErrorTypes:  []ErrorType{ErrorTypeNetwork, ErrorTypeTimeout},
 	}
@@ -76,12 +76,12 @@ func DefaultRetryPolicy() RetryPolicy {
 func AggressiveRetryPolicy() RetryPolicy {
 	return RetryPolicy{
 		MaxAttempts:          5,
-		BaseDelay:           50 * time.Millisecond,
-		MaxDelay:            10 * time.Second,
-		Strategy:            RetryStrategyExponentialJitter,
-		Multiplier:          1.5,
-		JitterMax:           100 * time.Millisecond,
-		Condition:           AggressiveRetryCondition,
+		BaseDelay:            50 * time.Millisecond,
+		MaxDelay:             10 * time.Second,
+		Strategy:             RetryStrategyExponentialJitter,
+		Multiplier:           1.5,
+		JitterMax:            100 * time.Millisecond,
+		Condition:            AggressiveRetryCondition,
 		RetryableStatusCodes: []int{408, 429, 500, 502, 503, 504}, // Include timeouts
 		RetryableErrorTypes:  []ErrorType{ErrorTypeNetwork, ErrorTypeTimeout, ErrorTypeServer},
 	}
@@ -91,12 +91,12 @@ func AggressiveRetryPolicy() RetryPolicy {
 func ConservativeRetryPolicy() RetryPolicy {
 	return RetryPolicy{
 		MaxAttempts:          2,
-		BaseDelay:           500 * time.Millisecond,
-		MaxDelay:            2 * time.Second,
-		Strategy:            RetryStrategyFixed,
-		Multiplier:          1.0,
-		JitterMax:           0,
-		Condition:           ConservativeRetryCondition,
+		BaseDelay:            500 * time.Millisecond,
+		MaxDelay:             2 * time.Second,
+		Strategy:             RetryStrategyFixed,
+		Multiplier:           1.0,
+		JitterMax:            0,
+		Condition:            ConservativeRetryCondition,
 		RetryableStatusCodes: []int{503, 504}, // Only retry on service unavailable
 		RetryableErrorTypes:  []ErrorType{ErrorTypeNetwork},
 	}
@@ -108,7 +108,7 @@ func AdvancedDefaultRetryCondition(attempt int, err error, resp *http.Response) 
 	if attempt > 3 {
 		return false
 	}
-	
+
 	// Retry on network and timeout errors
 	if err != nil {
 		if httpErr, ok := err.(*HTTPError); ok {
@@ -116,12 +116,12 @@ func AdvancedDefaultRetryCondition(attempt int, err error, resp *http.Response) 
 		}
 		return true // Retry on unknown errors
 	}
-	
+
 	// Retry on server errors but not client errors
 	if resp != nil {
 		return resp.StatusCode >= 500 || resp.StatusCode == 429 // Rate limiting
 	}
-	
+
 	return false
 }
 
@@ -131,7 +131,7 @@ func AggressiveRetryCondition(attempt int, err error, resp *http.Response) bool 
 	if attempt > 5 {
 		return false
 	}
-	
+
 	// Retry on various error types
 	if err != nil {
 		if httpErr, ok := err.(*HTTPError); ok {
@@ -144,14 +144,14 @@ func AggressiveRetryCondition(attempt int, err error, resp *http.Response) bool 
 		}
 		return true
 	}
-	
+
 	// Retry on more status codes
 	if resp != nil {
-		return resp.StatusCode >= 500 || 
-			   resp.StatusCode == 429 || 
-			   resp.StatusCode == 408 // Request timeout
+		return resp.StatusCode >= 500 ||
+			resp.StatusCode == 429 ||
+			resp.StatusCode == 408 // Request timeout
 	}
-	
+
 	return false
 }
 
@@ -161,7 +161,7 @@ func ConservativeRetryCondition(attempt int, err error, resp *http.Response) boo
 	if attempt > 1 {
 		return false
 	}
-	
+
 	// Only retry on clear network issues
 	if err != nil {
 		if httpErr, ok := err.(*HTTPError); ok {
@@ -169,12 +169,12 @@ func ConservativeRetryCondition(attempt int, err error, resp *http.Response) boo
 		}
 		return false
 	}
-	
+
 	// Only retry on service unavailable
 	if resp != nil {
 		return resp.StatusCode == 503 || resp.StatusCode == 504
 	}
-	
+
 	return false
 }
 
@@ -204,7 +204,7 @@ func NewAdvancedRetryMiddleware(policy RetryPolicy) *AdvancedRetryMiddleware {
 	if policy.Condition == nil {
 		policy.Condition = AdvancedDefaultRetryCondition
 	}
-	
+
 	return &AdvancedRetryMiddleware{
 		policy: policy,
 	}
@@ -219,34 +219,34 @@ func (m *AdvancedRetryMiddleware) Name() string {
 func (m *AdvancedRetryMiddleware) Execute(ctx context.Context, req *http.Request, next MiddlewareFunc) (*http.Response, error) {
 	var lastErr error
 	var lastResp *http.Response
-	
+
 	for attempt := 0; attempt < m.policy.MaxAttempts; attempt++ {
 		// Clone the request for retry attempts
 		reqClone := req.Clone(ctx)
-		
+
 		resp, err := next(ctx, reqClone)
-		
+
 		// Check if this was successful or if we shouldn't retry
 		if !m.shouldRetry(attempt, err, resp) {
 			return resp, err
 		}
-		
+
 		// Store the last error/response for potential return
 		lastErr = err
 		lastResp = resp
-		
+
 		// Don't wait after the last attempt
 		if attempt == m.policy.MaxAttempts-1 {
 			break
 		}
-		
+
 		// Calculate and apply delay
 		delay := m.calculateDelay(attempt)
 		if err := m.waitWithContext(ctx, delay); err != nil {
 			return nil, err // Context cancelled or deadline exceeded
 		}
 	}
-	
+
 	// Return the last error or response
 	if lastErr != nil {
 		return nil, lastErr
@@ -260,7 +260,7 @@ func (m *AdvancedRetryMiddleware) shouldRetry(attempt int, err error, resp *http
 	if m.policy.Condition != nil {
 		return m.policy.Condition(attempt, err, resp)
 	}
-	
+
 	// Check against configured retryable error types
 	if err != nil {
 		if httpErr, ok := err.(*HTTPError); ok {
@@ -272,7 +272,7 @@ func (m *AdvancedRetryMiddleware) shouldRetry(attempt int, err error, resp *http
 		}
 		return false
 	}
-	
+
 	// Check against configured retryable status codes
 	if resp != nil {
 		for _, retryableCode := range m.policy.RetryableStatusCodes {
@@ -281,30 +281,30 @@ func (m *AdvancedRetryMiddleware) shouldRetry(attempt int, err error, resp *http
 			}
 		}
 	}
-	
+
 	return false
 }
 
 // calculateDelay calculates the delay for the given attempt using the configured strategy
 func (m *AdvancedRetryMiddleware) calculateDelay(attempt int) time.Duration {
 	var delay time.Duration
-	
+
 	switch m.policy.Strategy {
 	case RetryStrategyFixed:
 		delay = m.policy.BaseDelay
-		
+
 	case RetryStrategyLinear:
 		delay = time.Duration(float64(m.policy.BaseDelay) * (float64(attempt+1) * m.policy.Multiplier))
-		
+
 	case RetryStrategyExponential:
 		multiplier := math.Pow(m.policy.Multiplier, float64(attempt))
 		delay = time.Duration(float64(m.policy.BaseDelay) * multiplier)
-		
+
 	case RetryStrategyExponentialJitter:
 		// Calculate exponential delay
 		multiplier := math.Pow(m.policy.Multiplier, float64(attempt))
 		baseDelay := time.Duration(float64(m.policy.BaseDelay) * multiplier)
-		
+
 		// Add jitter
 		if m.policy.JitterMax > 0 {
 			jitter := m.randomJitter(m.policy.JitterMax)
@@ -312,18 +312,18 @@ func (m *AdvancedRetryMiddleware) calculateDelay(attempt int) time.Duration {
 		} else {
 			delay = baseDelay
 		}
-		
+
 	default:
 		// Default to exponential
 		multiplier := math.Pow(2.0, float64(attempt))
 		delay = time.Duration(float64(m.policy.BaseDelay) * multiplier)
 	}
-	
+
 	// Cap at maximum delay
 	if delay > m.policy.MaxDelay {
 		delay = m.policy.MaxDelay
 	}
-	
+
 	return delay
 }
 
@@ -332,7 +332,7 @@ func (m *AdvancedRetryMiddleware) randomJitter(maxJitter time.Duration) time.Dur
 	if maxJitter <= 0 {
 		return 0
 	}
-	
+
 	// Generate cryptographically secure random number
 	maxNanos := maxJitter.Nanoseconds()
 	randomNanos, err := rand.Int(rand.Reader, big.NewInt(maxNanos))
@@ -340,7 +340,7 @@ func (m *AdvancedRetryMiddleware) randomJitter(maxJitter time.Duration) time.Dur
 		// Fallback to no jitter if random generation fails
 		return 0
 	}
-	
+
 	return time.Duration(randomNanos.Int64())
 }
 
@@ -349,10 +349,10 @@ func (m *AdvancedRetryMiddleware) waitWithContext(ctx context.Context, delay tim
 	if delay <= 0 {
 		return nil
 	}
-	
+
 	timer := time.NewTimer(delay)
 	defer timer.Stop()
-	
+
 	select {
 	case <-ctx.Done():
 		return ctx.Err()

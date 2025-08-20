@@ -110,12 +110,12 @@ func DefaultRetryCondition(err error, resp *http.Response) bool {
 	if err != nil {
 		return true
 	}
-	
+
 	// Retry on server errors (5xx) but not client errors (4xx)
 	if resp != nil && resp.StatusCode >= 500 {
 		return true
 	}
-	
+
 	return false
 }
 
@@ -130,7 +130,7 @@ func NewRetryMiddleware(config RetryConfig) *RetryMiddleware {
 	if config.MaxDelay == 0 {
 		config.MaxDelay = 5 * time.Second
 	}
-	
+
 	return &RetryMiddleware{
 		maxRetries: config.MaxRetries,
 		baseDelay:  config.BaseDelay,
@@ -148,39 +148,39 @@ func (m *RetryMiddleware) Name() string {
 func (m *RetryMiddleware) Execute(ctx context.Context, req *http.Request, next MiddlewareFunc) (*http.Response, error) {
 	var lastErr error
 	var lastResp *http.Response
-	
+
 	for attempt := 0; attempt <= m.maxRetries; attempt++ {
 		// Clone the request for retry attempts to avoid issues with consumed request bodies
 		reqClone := req.Clone(ctx)
-		
+
 		resp, err := next(ctx, reqClone)
-		
+
 		// If successful, return immediately
 		if err == nil && (resp == nil || !m.retryFunc(nil, resp)) {
 			return resp, nil
 		}
-		
+
 		// Store the last error/response for potential return
 		lastErr = err
 		lastResp = resp
-		
+
 		// Don't retry if this is the last attempt
 		if attempt == m.maxRetries {
 			break
 		}
-		
+
 		// Check if we should retry
 		if !m.retryFunc(err, resp) {
 			break
 		}
-		
+
 		// Calculate delay with exponential backoff
 		multiplier := 1 << uint(attempt)
 		delay := time.Duration(float64(m.baseDelay) * float64(multiplier))
 		if delay > m.maxDelay {
 			delay = m.maxDelay
 		}
-		
+
 		// Wait before retrying
 		select {
 		case <-ctx.Done():
@@ -189,7 +189,7 @@ func (m *RetryMiddleware) Execute(ctx context.Context, req *http.Request, next M
 			// Continue to next attempt
 		}
 	}
-	
+
 	// Return the last error or response
 	if lastErr != nil {
 		return nil, lastErr
@@ -212,9 +212,9 @@ type MetricsCollector interface {
 // NoOpMetricsCollector is a no-op implementation for testing
 type NoOpMetricsCollector struct{}
 
-func (NoOpMetricsCollector) IncrementRequests(method, url string)                            {}
-func (NoOpMetricsCollector) IncrementErrors(method, url string, statusCode int)             {}
-func (NoOpMetricsCollector) RecordDuration(method, url string, duration time.Duration)     {}
+func (NoOpMetricsCollector) IncrementRequests(method, url string)                      {}
+func (NoOpMetricsCollector) IncrementErrors(method, url string, statusCode int)        {}
+func (NoOpMetricsCollector) RecordDuration(method, url string, duration time.Duration) {}
 
 // NewMetricsMiddleware creates a new metrics middleware
 func NewMetricsMiddleware(collector MetricsCollector) *MetricsMiddleware {
@@ -235,24 +235,24 @@ func (m *MetricsMiddleware) Name() string {
 func (m *MetricsMiddleware) Execute(ctx context.Context, req *http.Request, next MiddlewareFunc) (*http.Response, error) {
 	method := req.Method
 	url := req.URL.String()
-	
+
 	m.collector.IncrementRequests(method, url)
-	
+
 	start := time.Now()
 	resp, err := next(ctx, req)
 	duration := time.Since(start)
-	
+
 	m.collector.RecordDuration(method, url, duration)
-	
+
 	if err != nil {
 		m.collector.IncrementErrors(method, url, 0) // 0 indicates network error
 		return nil, err
 	}
-	
+
 	if resp.StatusCode >= 400 {
 		m.collector.IncrementErrors(method, url, resp.StatusCode)
 	}
-	
+
 	return resp, nil
 }
 
@@ -285,6 +285,6 @@ func (m *UserAgentMiddleware) Execute(ctx context.Context, req *http.Request, ne
 			req.Header.Set("User-Agent", m.userAgent)
 		}
 	}
-	
+
 	return next(ctx, req)
 }

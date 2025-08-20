@@ -16,7 +16,7 @@ import (
 func TestRetryPolicies(t *testing.T) {
 	t.Run("default retry policy", func(t *testing.T) {
 		policy := httpx.DefaultRetryPolicy()
-		
+
 		assert.Equal(t, 3, policy.MaxAttempts)
 		assert.Equal(t, 100*time.Millisecond, policy.BaseDelay)
 		assert.Equal(t, 5*time.Second, policy.MaxDelay)
@@ -29,7 +29,7 @@ func TestRetryPolicies(t *testing.T) {
 
 	t.Run("aggressive retry policy", func(t *testing.T) {
 		policy := httpx.AggressiveRetryPolicy()
-		
+
 		assert.Equal(t, 5, policy.MaxAttempts)
 		assert.Equal(t, httpx.RetryStrategyExponentialJitter, policy.Strategy)
 		assert.Contains(t, policy.RetryableStatusCodes, 408) // Request timeout
@@ -38,7 +38,7 @@ func TestRetryPolicies(t *testing.T) {
 
 	t.Run("conservative retry policy", func(t *testing.T) {
 		policy := httpx.ConservativeRetryPolicy()
-		
+
 		assert.Equal(t, 2, policy.MaxAttempts)
 		assert.Equal(t, httpx.RetryStrategyFixed, policy.Strategy)
 		assert.Equal(t, []int{503, 504}, policy.RetryableStatusCodes)
@@ -48,12 +48,12 @@ func TestRetryPolicies(t *testing.T) {
 
 func TestRetryConditions(t *testing.T) {
 	tests := []struct {
-		name         string
-		condition    httpx.RetryCondition
-		attempt      int
-		err          error
-		resp         *http.Response
-		shouldRetry  bool
+		name        string
+		condition   httpx.RetryCondition
+		attempt     int
+		err         error
+		resp        *http.Response
+		shouldRetry bool
 	}{
 		{
 			name:        "default condition - network error should retry",
@@ -118,7 +118,7 @@ func TestAdvancedRetryMiddleware(t *testing.T) {
 	t.Run("retry on network error", func(t *testing.T) {
 		attemptCount := 0
 		maxAttempts := 3
-		
+
 		middleware := httpx.NewAdvancedRetryMiddleware(httpx.RetryPolicy{
 			MaxAttempts: maxAttempts,
 			BaseDelay:   10 * time.Millisecond, // Short delay for testing
@@ -139,9 +139,9 @@ func TestAdvancedRetryMiddleware(t *testing.T) {
 
 		ctx := context.Background()
 		req, _ := http.NewRequest("GET", "http://example.com", nil)
-		
+
 		resp, err := middleware.Execute(ctx, req, next)
-		
+
 		assert.NoError(t, err)
 		assert.NotNil(t, resp)
 		assert.Equal(t, 200, resp.StatusCode)
@@ -150,12 +150,12 @@ func TestAdvancedRetryMiddleware(t *testing.T) {
 
 	t.Run("retry on server error status codes", func(t *testing.T) {
 		attemptCount := 0
-		
+
 		middleware := httpx.NewAdvancedRetryMiddleware(httpx.RetryPolicy{
 			MaxAttempts:          3,
-			BaseDelay:           10 * time.Millisecond,
-			MaxDelay:            100 * time.Millisecond,
-			Strategy:            httpx.RetryStrategyFixed,
+			BaseDelay:            10 * time.Millisecond,
+			MaxDelay:             100 * time.Millisecond,
+			Strategy:             httpx.RetryStrategyFixed,
 			RetryableStatusCodes: []int{503},
 		})
 
@@ -169,9 +169,9 @@ func TestAdvancedRetryMiddleware(t *testing.T) {
 
 		ctx := context.Background()
 		req, _ := http.NewRequest("GET", "http://example.com", nil)
-		
+
 		resp, err := middleware.Execute(ctx, req, next)
-		
+
 		assert.NoError(t, err)
 		assert.NotNil(t, resp)
 		assert.Equal(t, 200, resp.StatusCode)
@@ -181,7 +181,7 @@ func TestAdvancedRetryMiddleware(t *testing.T) {
 	t.Run("stop retrying after max attempts", func(t *testing.T) {
 		attemptCount := 0
 		maxAttempts := 2
-		
+
 		middleware := httpx.NewAdvancedRetryMiddleware(httpx.RetryPolicy{
 			MaxAttempts: maxAttempts,
 			BaseDelay:   10 * time.Millisecond,
@@ -199,9 +199,9 @@ func TestAdvancedRetryMiddleware(t *testing.T) {
 
 		ctx := context.Background()
 		req, _ := http.NewRequest("GET", "http://example.com", nil)
-		
+
 		resp, err := middleware.Execute(ctx, req, next)
-		
+
 		assert.Error(t, err)
 		assert.Nil(t, resp)
 		assert.Equal(t, maxAttempts, attemptCount)
@@ -209,7 +209,7 @@ func TestAdvancedRetryMiddleware(t *testing.T) {
 
 	t.Run("context cancellation stops retries", func(t *testing.T) {
 		attemptCount := 0
-		
+
 		middleware := httpx.NewAdvancedRetryMiddleware(httpx.RetryPolicy{
 			MaxAttempts: 5,
 			BaseDelay:   100 * time.Millisecond, // Longer delay to test cancellation
@@ -226,18 +226,18 @@ func TestAdvancedRetryMiddleware(t *testing.T) {
 
 		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 		defer cancel()
-		
+
 		req, _ := http.NewRequest("GET", "http://example.com", nil)
-		
+
 		start := time.Now()
 		resp, err := middleware.Execute(ctx, req, next)
 		duration := time.Since(start)
-		
+
 		assert.Error(t, err)
 		assert.Nil(t, resp)
 		assert.True(t, errors.Is(err, context.DeadlineExceeded))
 		assert.Less(t, duration, 200*time.Millisecond) // Should be cancelled before second retry
-		assert.Equal(t, 1, attemptCount) // Should only attempt once before context cancellation
+		assert.Equal(t, 1, attemptCount)               // Should only attempt once before context cancellation
 	})
 }
 
@@ -267,7 +267,7 @@ func TestRetryStrategies(t *testing.T) {
 			baseDelay:       100 * time.Millisecond,
 			maxDelay:        1 * time.Second,
 			multiplier:      2.0,
-			attempt:         2, // Third attempt (0-indexed)
+			attempt:         2,                      // Third attempt (0-indexed)
 			expectedMinimum: 600 * time.Millisecond, // 100 * (2+1) * 2.0
 			expectedMaximum: 600 * time.Millisecond,
 		},
@@ -277,7 +277,7 @@ func TestRetryStrategies(t *testing.T) {
 			baseDelay:       100 * time.Millisecond,
 			maxDelay:        1 * time.Second,
 			multiplier:      2.0,
-			attempt:         2, // Third attempt
+			attempt:         2,                      // Third attempt
 			expectedMinimum: 400 * time.Millisecond, // 100 * 2^2
 			expectedMaximum: 400 * time.Millisecond,
 		},
@@ -287,7 +287,7 @@ func TestRetryStrategies(t *testing.T) {
 			baseDelay:       100 * time.Millisecond,
 			maxDelay:        300 * time.Millisecond,
 			multiplier:      2.0,
-			attempt:         4, // Fifth attempt would be 100 * 2^4 = 1600ms
+			attempt:         4,                      // Fifth attempt would be 100 * 2^4 = 1600ms
 			expectedMinimum: 300 * time.Millisecond, // Capped at maxDelay
 			expectedMaximum: 300 * time.Millisecond,
 		},
@@ -307,7 +307,7 @@ func TestRetryStrategies(t *testing.T) {
 			// by creating a test scenario that measures actual delays
 			attemptCount := 0
 			var measuredDelay time.Duration
-			
+
 			next := func(ctx context.Context, req *http.Request) (*http.Response, error) {
 				attemptCount++
 				if attemptCount == 1 {
@@ -322,11 +322,11 @@ func TestRetryStrategies(t *testing.T) {
 
 			ctx := context.Background()
 			req, _ := http.NewRequest("GET", "http://example.com", nil)
-			
+
 			start := time.Now()
 			middleware.Execute(ctx, req, next)
 			measuredDelay = time.Since(start)
-			
+
 			// For strategies other than jitter, we can verify the delay more precisely
 			if tc.strategy != httpx.RetryStrategyExponentialJitter {
 				// Allow generous tolerance for timing variations in tests
@@ -348,12 +348,12 @@ func TestRetryWithJitter(t *testing.T) {
 			Multiplier:  2.0,
 			JitterMax:   50 * time.Millisecond,
 		}
-		
+
 		middleware := httpx.NewAdvancedRetryMiddleware(policy)
-		
+
 		// Run multiple times to verify jitter creates different delays
 		delays := make([]time.Duration, 5)
-		
+
 		for i := 0; i < 5; i++ {
 			attemptCount := 0
 			next := func(ctx context.Context, req *http.Request) (*http.Response, error) {
@@ -366,19 +366,19 @@ func TestRetryWithJitter(t *testing.T) {
 
 			ctx := context.Background()
 			req, _ := http.NewRequest("GET", "http://example.com", nil)
-			
+
 			start := time.Now()
 			middleware.Execute(ctx, req, next)
 			delays[i] = time.Since(start)
 		}
-		
+
 		// Verify that we get different delays (jitter is working)
 		// Note: There's a small chance all delays could be identical, but it's extremely unlikely
 		uniqueDelays := make(map[time.Duration]bool)
 		for _, delay := range delays {
 			uniqueDelays[delay] = true
 		}
-		
+
 		// We should have at least 2 different delays out of 5 runs
 		assert.GreaterOrEqual(t, len(uniqueDelays), 2, "Jitter should create different delays")
 	})
@@ -388,7 +388,7 @@ func TestRetryableError(t *testing.T) {
 	t.Run("retryable error wrapping", func(t *testing.T) {
 		originalErr := errors.New("original error")
 		retryableErr := httpx.WrapAsRetryable(originalErr, 100*time.Millisecond)
-		
+
 		assert.True(t, httpx.IsRetryable(retryableErr))
 		assert.True(t, errors.Is(retryableErr, originalErr))
 		assert.Contains(t, retryableErr.Error(), "retryable error")
@@ -434,7 +434,7 @@ func TestClientWithRetryPolicy(t *testing.T) {
 		require.NotNil(t, response)
 		assert.Equal(t, http.StatusOK, response.StatusCode)
 		assert.Equal(t, 3, attemptCount) // Should have retried twice
-		
+
 		body, ok := response.Body.(map[string]any)
 		require.True(t, ok)
 		assert.Equal(t, "success", body["message"])
@@ -451,9 +451,9 @@ func TestClientWithRetryPolicy(t *testing.T) {
 
 		customPolicy := httpx.RetryPolicy{
 			MaxAttempts:          2, // Only try twice
-			BaseDelay:           10 * time.Millisecond,
-			MaxDelay:            100 * time.Millisecond,
-			Strategy:            httpx.RetryStrategyFixed,
+			BaseDelay:            10 * time.Millisecond,
+			MaxDelay:             100 * time.Millisecond,
+			Strategy:             httpx.RetryStrategyFixed,
 			RetryableStatusCodes: []int{503},
 		}
 
@@ -506,7 +506,7 @@ func TestClientWithRetryPolicy(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, response)
 		assert.Equal(t, http.StatusOK, response.StatusCode)
-		assert.Equal(t, 2, attemptCount) // Should have retried once
+		assert.Equal(t, 2, attemptCount)   // Should have retried once
 		assert.True(t, middlewareExecuted) // Custom middleware should have executed
 	})
 }
@@ -524,4 +524,3 @@ func (m *testMiddleware) Name() string {
 func (m *testMiddleware) Execute(ctx context.Context, req *http.Request, next httpx.MiddlewareFunc) (*http.Response, error) {
 	return m.execute(ctx, req, next)
 }
-

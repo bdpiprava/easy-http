@@ -26,10 +26,13 @@ type ClientConfig struct {
 	DefaultBaseURL   string      // Default base URL for requests
 	DefaultHeaders   http.Header // Default headers applied to all requests
 	DefaultBasicAuth BasicAuth   // Default basic auth for all requests
-	
+
 	// Retry configuration
 	RetryPolicy *RetryPolicy // Optional retry policy for all requests
-	
+
+	// Circuit breaker configuration
+	CircuitBreakerConfig *CircuitBreakerConfig // Optional circuit breaker for fault tolerance
+
 	// Middleware configuration
 	Middlewares []Middleware // Ordered list of middlewares to apply to all requests
 }

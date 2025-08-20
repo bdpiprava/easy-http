@@ -44,7 +44,7 @@ func ExampleMiddleware() {
 		httpx.WithClientMiddlewares(
 			// Logging middleware (will be first in chain)
 			httpx.NewLoggingMiddleware(logger, slog.LevelDebug),
-			// Custom middleware  
+			// Custom middleware
 			customMiddleware,
 			// Retry middleware (will be last in chain, closest to HTTP call)
 			httpx.NewRetryMiddleware(retryConfig),
@@ -63,11 +63,11 @@ func ExampleMiddleware() {
 	}
 
 	fmt.Printf("Response status: %d\n", response.StatusCode)
-	
+
 	// Show logs
-	fmt.Printf("Logs contain request info: %v\n", 
+	fmt.Printf("Logs contain request info: %v\n",
 		bytes.Contains(logBuffer.Bytes(), []byte("HTTP request")))
-	fmt.Printf("Logs contain response info: %v\n", 
+	fmt.Printf("Logs contain response info: %v\n",
 		bytes.Contains(logBuffer.Bytes(), []byte("HTTP response")))
 
 	// Output:
@@ -91,10 +91,10 @@ func (m *CustomHeaderMiddleware) Name() string {
 func (m *CustomHeaderMiddleware) Execute(ctx context.Context, req *http.Request, next httpx.MiddlewareFunc) (*http.Response, error) {
 	// Add custom header to request
 	req.Header.Set(m.headerName, m.headerValue)
-	
+
 	// Call next middleware in chain
 	resp, err := next(ctx, req)
-	
+
 	// Could also modify response here if needed
 	return resp, err
 }
@@ -109,12 +109,12 @@ func DemoInterceptors() {
 
 	// Create request interceptor
 	requestInterceptor := &ExampleRequestInterceptor{}
-	
+
 	// Create response interceptor
 	responseInterceptor := &ExampleResponseInterceptor{}
 
 	// Create interceptor middleware
-	interceptorMiddleware := httpx.NewInterceptorMiddleware("example-interceptors", 
+	interceptorMiddleware := httpx.NewInterceptorMiddleware("example-interceptors",
 		requestInterceptor, responseInterceptor)
 
 	client := httpx.NewClientWithConfig(
@@ -165,7 +165,7 @@ func TestMiddlewareExamples(t *testing.T) {
 	t.Run("example middleware", func(t *testing.T) {
 		ExampleMiddleware()
 	})
-	
+
 	t.Run("demo interceptors", func(t *testing.T) {
 		DemoInterceptors()
 	})

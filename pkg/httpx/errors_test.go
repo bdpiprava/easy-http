@@ -22,10 +22,10 @@ func TestErrorClassification(t *testing.T) {
 			Name:       "invalid-domain.com",
 			IsNotFound: true,
 		}
-		
+
 		req, _ := http.NewRequest("GET", "http://invalid-domain.com", nil)
 		httpErr := httpx.ClassifyError(dnsErr, req, nil)
-		
+
 		assert.Equal(t, httpx.ErrorTypeNetwork, httpErr.Type)
 		assert.True(t, httpx.IsNetworkError(httpErr))
 		assert.Contains(t, httpErr.Error(), "network error")
@@ -41,10 +41,10 @@ func TestErrorClassification(t *testing.T) {
 				IsTimeout: true,
 			},
 		}
-		
+
 		req, _ := http.NewRequest("GET", "http://slow-server.com", nil)
 		httpErr := httpx.ClassifyError(timeoutErr, req, nil)
-		
+
 		assert.Equal(t, httpx.ErrorTypeTimeout, httpErr.Type)
 		assert.True(t, httpx.IsTimeoutError(httpErr))
 	})
@@ -52,7 +52,7 @@ func TestErrorClassification(t *testing.T) {
 	t.Run("context timeout errors", func(t *testing.T) {
 		req, _ := http.NewRequest("GET", "http://example.com", nil)
 		httpErr := httpx.ClassifyError(context.DeadlineExceeded, req, nil)
-		
+
 		assert.Equal(t, httpx.ErrorTypeTimeout, httpErr.Type)
 		assert.True(t, httpx.IsTimeoutError(httpErr))
 	})
@@ -63,9 +63,9 @@ func TestErrorClassification(t *testing.T) {
 			StatusCode: 404,
 			Status:     "404 Not Found",
 		}
-		
+
 		httpErr := httpx.ClassifyError(nil, req, resp)
-		
+
 		assert.Equal(t, httpx.ErrorTypeClient, httpErr.Type)
 		assert.True(t, httpx.IsClientError(httpErr))
 		assert.Equal(t, 404, httpErr.StatusCode)
@@ -78,9 +78,9 @@ func TestErrorClassification(t *testing.T) {
 			StatusCode: 500,
 			Status:     "500 Internal Server Error",
 		}
-		
+
 		httpErr := httpx.ClassifyError(nil, req, resp)
-		
+
 		assert.Equal(t, httpx.ErrorTypeServer, httpErr.Type)
 		assert.True(t, httpx.IsServerError(httpErr))
 		assert.Equal(t, 500, httpErr.StatusCode)
@@ -88,7 +88,7 @@ func TestErrorClassification(t *testing.T) {
 
 	t.Run("validation errors", func(t *testing.T) {
 		validationErr := httpx.ValidationError("invalid URL format", nil)
-		
+
 		assert.Equal(t, httpx.ErrorTypeValidation, validationErr.Type)
 		assert.True(t, httpx.IsValidationError(validationErr))
 		assert.Contains(t, validationErr.Error(), "validation error")
@@ -97,7 +97,7 @@ func TestErrorClassification(t *testing.T) {
 	t.Run("middleware errors", func(t *testing.T) {
 		req, _ := http.NewRequest("GET", "http://example.com", nil)
 		middlewareErr := httpx.MiddlewareError("middleware failure", errors.New("underlying error"), req)
-		
+
 		assert.Equal(t, httpx.ErrorTypeMiddleware, middlewareErr.Type)
 		assert.True(t, httpx.IsMiddlewareError(middlewareErr))
 		assert.Equal(t, req, middlewareErr.Request)
@@ -108,7 +108,7 @@ func TestErrorWrapping(t *testing.T) {
 	t.Run("error unwrapping", func(t *testing.T) {
 		originalErr := errors.New("original error")
 		httpErr := httpx.NetworkError("network failure", originalErr, nil)
-		
+
 		assert.True(t, errors.Is(httpErr, originalErr))
 		assert.Equal(t, originalErr, errors.Unwrap(httpErr))
 	})
@@ -117,7 +117,7 @@ func TestErrorWrapping(t *testing.T) {
 		err1 := httpx.ClientError("client error", nil, &http.Response{StatusCode: 400})
 		err2 := httpx.ClientError("another client error", nil, &http.Response{StatusCode: 400})
 		err3 := httpx.ServerError("server error", nil, &http.Response{StatusCode: 500})
-		
+
 		assert.True(t, errors.Is(err1, err2))
 		assert.False(t, errors.Is(err1, err3))
 	})
@@ -127,9 +127,9 @@ func TestErrorContext(t *testing.T) {
 	t.Run("request context preservation", func(t *testing.T) {
 		ctx := context.WithValue(context.Background(), "test-key", "test-value")
 		req, _ := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
-		
+
 		httpErr := httpx.NetworkError("network error", nil, req)
-		
+
 		extractedCtx := httpx.GetRequestContext(httpErr)
 		require.NotNil(t, extractedCtx)
 		assert.Equal(t, "test-value", extractedCtx.Value("test-key"))
@@ -153,7 +153,7 @@ func TestIntegrationWithHTTPClient(t *testing.T) {
 
 		require.Error(t, err)
 		assert.True(t, httpx.IsNetworkError(err), "Expected network error, got: %T", err)
-		
+
 		if httpErr, ok := err.(*httpx.HTTPError); ok {
 			assert.NotNil(t, httpErr.Request)
 			assert.Contains(t, httpErr.Request.URL.String(), "invalid-domain-that-does-not-exist.com")
@@ -203,7 +203,7 @@ func TestIntegrationWithHTTPClient(t *testing.T) {
 	t.Run("validation error integration", func(t *testing.T) {
 		client := httpx.NewClientWithConfig()
 
-		req := httpx.NewRequest(http.MethodGet, 
+		req := httpx.NewRequest(http.MethodGet,
 			httpx.WithBaseURL("invalid-url-without-scheme"),
 			httpx.WithPath("/test"),
 		)
@@ -310,7 +310,7 @@ func TestErrorHelperFunctions(t *testing.T) {
 	t.Run("GetStatusCode", func(t *testing.T) {
 		httpErr := httpx.ClientError("client error", nil, &http.Response{StatusCode: 404})
 		assert.Equal(t, 404, httpx.GetStatusCode(httpErr))
-		
+
 		regularErr := errors.New("regular error")
 		assert.Equal(t, 0, httpx.GetStatusCode(regularErr))
 	})
@@ -319,11 +319,11 @@ func TestErrorHelperFunctions(t *testing.T) {
 		ctx := context.WithValue(context.Background(), "key", "value")
 		req, _ := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
 		httpErr := httpx.NetworkError("network error", nil, req)
-		
+
 		extractedCtx := httpx.GetRequestContext(httpErr)
 		require.NotNil(t, extractedCtx)
 		assert.Equal(t, "value", extractedCtx.Value("key"))
-		
+
 		regularErr := errors.New("regular error")
 		assert.Nil(t, httpx.GetRequestContext(regularErr))
 	})

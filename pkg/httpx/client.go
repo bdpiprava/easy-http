@@ -35,29 +35,47 @@ func NewClientWithConfig(opts ...ClientConfigOption) *Client {
 	// Auto-configure middlewares based on configuration
 	if len(config.Middlewares) == 0 {
 		var middlewares []Middleware
-		
+
+		// Add circuit breaker middleware if circuit breaker config is provided
+		// Circuit breaker should be first to fail fast before retry attempts
+		if config.CircuitBreakerConfig != nil {
+			circuitBreakerMiddleware := NewCircuitBreakerMiddleware(*config.CircuitBreakerConfig)
+			middlewares = append(middlewares, circuitBreakerMiddleware)
+		}
+
 		// Add retry middleware if retry policy is configured
 		if config.RetryPolicy != nil {
 			retryMiddleware := NewAdvancedRetryMiddleware(*config.RetryPolicy)
 			middlewares = append(middlewares, retryMiddleware)
 		}
-		
+
 		// Add logging middleware if logger is provided
 		if config.Logger != nil {
 			loggingMiddleware := NewLoggingMiddleware(config.Logger, config.LogLevel)
 			middlewares = append(middlewares, loggingMiddleware)
 		}
-		
+
 		config.Middlewares = middlewares
 	} else {
-		// If custom middlewares are provided but retry policy is configured,
-		// prepend retry middleware to ensure it runs first
+		// If custom middlewares are provided but circuit breaker/retry policies are configured,
+		// prepend them to ensure they run first (circuit breaker before retry)
+		var prependMiddlewares []Middleware
+
+		if config.CircuitBreakerConfig != nil {
+			circuitBreakerMiddleware := NewCircuitBreakerMiddleware(*config.CircuitBreakerConfig)
+			prependMiddlewares = append(prependMiddlewares, circuitBreakerMiddleware)
+		}
+
 		if config.RetryPolicy != nil {
 			retryMiddleware := NewAdvancedRetryMiddleware(*config.RetryPolicy)
-			config.Middlewares = append([]Middleware{retryMiddleware}, config.Middlewares...)
+			prependMiddlewares = append(prependMiddlewares, retryMiddleware)
+		}
+
+		if len(prependMiddlewares) > 0 {
+			config.Middlewares = append(prependMiddlewares, config.Middlewares...)
 		}
 	}
-	
+
 	return &Client{
 		config:        config,
 		clientOptions: config.ToClientOptions(), // For backward compatibility
@@ -87,7 +105,7 @@ func NewClient(opts ...ClientOption) *Client {
 		DefaultHeaders:   cOpts.Headers,
 		DefaultBasicAuth: cOpts.BasicAuth,
 	}
-	
+
 	// Add default logging middleware if logger is provided
 	if config.Logger != nil {
 		loggingMiddleware := NewLoggingMiddleware(config.Logger, config.LogLevel)
@@ -280,5 +298,36 @@ func WithClientConservativeRetryPolicy() ClientConfigOption {
 	policy := ConservativeRetryPolicy()
 	return func(c *ClientConfig) {
 		c.RetryPolicy = &policy
+	}
+}
+
+// WithClientCircuitBreaker sets the circuit breaker configuration for all requests made by this client
+func WithClientCircuitBreaker(config CircuitBreakerConfig) ClientConfigOption {
+	return func(c *ClientConfig) {
+		c.CircuitBreakerConfig = &config
+	}
+}
+
+// WithClientDefaultCircuitBreaker enables default circuit breaker behavior for all requests
+func WithClientDefaultCircuitBreaker() ClientConfigOption {
+	config := DefaultCircuitBreakerConfig()
+	return func(c *ClientConfig) {
+		c.CircuitBreakerConfig = &config
+	}
+}
+
+// WithClientAggressiveCircuitBreaker enables aggressive circuit breaker behavior for all requests
+func WithClientAggressiveCircuitBreaker() ClientConfigOption {
+	config := AggressiveCircuitBreakerConfig()
+	return func(c *ClientConfig) {
+		c.CircuitBreakerConfig = &config
+	}
+}
+
+// WithClientConservativeCircuitBreaker enables conservative circuit breaker behavior for all requests
+func WithClientConservativeCircuitBreaker() ClientConfigOption {
+	config := ConservativeCircuitBreakerConfig()
+	return func(c *ClientConfig) {
+		c.CircuitBreakerConfig = &config
 	}
 }

@@ -35,10 +35,10 @@ func (m *TestMiddleware) Execute(ctx context.Context, req *http.Request, next ht
 	m.mu.Lock()
 	m.executed = true
 	m.mu.Unlock()
-	
+
 	// Add a custom header to track execution
 	req.Header.Set("X-Middleware-"+m.name, "executed")
-	
+
 	return next(ctx, req)
 }
 
@@ -116,7 +116,7 @@ func TestMiddlewareChain(t *testing.T) {
 					headers[key] = values[0]
 				}
 			}
-			
+
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"middleware_headers": "received"}`))
@@ -159,7 +159,7 @@ func TestMiddlewareChain(t *testing.T) {
 			// Check the order of middleware headers
 			test1Header := r.Header.Get("X-Middleware-Test1")
 			test2Header := r.Header.Get("X-Middleware-Test2")
-			
+
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"test1": "` + test1Header + `", "test2": "` + test2Header + `"}`))
@@ -242,7 +242,7 @@ func TestRetryMiddleware(t *testing.T) {
 				w.Write([]byte(`{"error": "server error"}`))
 				return
 			}
-			
+
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"attempt": ` + string(rune(attemptCount+'0')) + `}`))
