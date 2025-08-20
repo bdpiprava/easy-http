@@ -186,9 +186,9 @@ func isTimeoutError(err error) bool {
 		return true
 	}
 
-	// Check for net timeout
+	// Check for net timeout interface
 	var netErr net.Error
-	if errors.As(err, &netErr) {
+	if errors.As(err, &netErr) && netErr.Timeout() {
 		return true
 	}
 
@@ -215,16 +215,24 @@ func isTimeoutError(err error) bool {
 
 // isNetworkError checks if an error is network-related
 func isNetworkError(err error) bool {
-	// Check for network operations
-	opError := &net.OpError{}
-	if errors.As(err, &opError) {
+	// Check for DNS errors first (before checking if it's also a timeout)
+	dNSError := &net.DNSError{}
+	if errors.As(err, &dNSError) {
+		// DNS errors are network errors, even if they might also timeout
 		return true
 	}
 
-	// Check for DNS errors
-	dNSError := &net.DNSError{}
-	if errors.As(err, &dNSError) {
-		return true
+	// Check for network operations (but not if they're timeouts)
+	opError := &net.OpError{}
+	if errors.As(err, &opError) {
+		// Only consider it a network error if it's not primarily a timeout
+		if !opError.Timeout() {
+			return true
+		}
+		// If it's a timeout, check if the underlying error is network-related
+		if opError.Err != nil {
+			return isNetworkError(opError.Err)
+		}
 	}
 
 	// Check for address errors
@@ -324,7 +332,12 @@ func GetStatusCode(err error) int {
 func GetRequestContext(err error) context.Context {
 	httpErr := &HTTPError{}
 	if errors.As(err, &httpErr) {
-		return httpErr.Context
+		if httpErr.Context != nil {
+			return httpErr.Context
+		}
+		if httpErr.Request != nil {
+			return httpErr.Request.Context()
+		}
 	}
 	return nil
 }

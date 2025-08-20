@@ -134,7 +134,7 @@ func TestErrorContext(t *testing.T) {
 
 		extractedCtx := httpx.GetRequestContext(httpErr)
 		require.NotNil(t, extractedCtx)
-		assert.Equal(t, "test-value", extractedCtx.Value("test-key"))
+		assert.Equal(t, "test-value", extractedCtx.Value(testContextKey("test-key")))
 	})
 
 	t.Run("nil context handling", func(t *testing.T) {
@@ -325,7 +325,7 @@ func TestErrorHelperFunctions(t *testing.T) {
 
 		extractedCtx := httpx.GetRequestContext(httpErr)
 		require.NotNil(t, extractedCtx)
-		assert.Equal(t, "value", extractedCtx.Value("key"))
+		assert.Equal(t, "value", extractedCtx.Value(testContextKey("key")))
 
 		regularErr := errors.New("regular error")
 		assert.Nil(t, httpx.GetRequestContext(regularErr))
