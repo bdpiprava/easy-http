@@ -27,6 +27,9 @@ type ClientConfig struct {
 	DefaultHeaders   http.Header // Default headers applied to all requests
 	DefaultBasicAuth BasicAuth   // Default basic auth for all requests
 	
+	// Retry configuration
+	RetryPolicy *RetryPolicy // Optional retry policy for all requests
+	
 	// Middleware configuration
 	Middlewares []Middleware // Ordered list of middlewares to apply to all requests
 }
