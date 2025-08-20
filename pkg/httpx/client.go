@@ -32,10 +32,30 @@ func NewClientWithConfig(opts ...ClientConfigOption) *Client {
 		opt(&config)
 	}
 
-	// Add default logging middleware if logger is provided but no custom middlewares
-	if config.Logger != nil && len(config.Middlewares) == 0 {
-		loggingMiddleware := NewLoggingMiddleware(config.Logger, config.LogLevel)
-		config.Middlewares = []Middleware{loggingMiddleware}
+	// Auto-configure middlewares based on configuration
+	if len(config.Middlewares) == 0 {
+		var middlewares []Middleware
+		
+		// Add retry middleware if retry policy is configured
+		if config.RetryPolicy != nil {
+			retryMiddleware := NewAdvancedRetryMiddleware(*config.RetryPolicy)
+			middlewares = append(middlewares, retryMiddleware)
+		}
+		
+		// Add logging middleware if logger is provided
+		if config.Logger != nil {
+			loggingMiddleware := NewLoggingMiddleware(config.Logger, config.LogLevel)
+			middlewares = append(middlewares, loggingMiddleware)
+		}
+		
+		config.Middlewares = middlewares
+	} else {
+		// If custom middlewares are provided but retry policy is configured,
+		// prepend retry middleware to ensure it runs first
+		if config.RetryPolicy != nil {
+			retryMiddleware := NewAdvancedRetryMiddleware(*config.RetryPolicy)
+			config.Middlewares = append([]Middleware{retryMiddleware}, config.Middlewares...)
+		}
 	}
 	
 	return &Client{
@@ -229,5 +249,36 @@ func WithClientMiddleware(middleware Middleware) ClientConfigOption {
 func WithClientMiddlewares(middlewares ...Middleware) ClientConfigOption {
 	return func(c *ClientConfig) {
 		c.Middlewares = middlewares
+	}
+}
+
+// WithClientRetryPolicy sets the retry policy for all requests made by this client
+func WithClientRetryPolicy(policy RetryPolicy) ClientConfigOption {
+	return func(c *ClientConfig) {
+		c.RetryPolicy = &policy
+	}
+}
+
+// WithClientDefaultRetryPolicy enables default retry behavior for all requests
+func WithClientDefaultRetryPolicy() ClientConfigOption {
+	policy := DefaultRetryPolicy()
+	return func(c *ClientConfig) {
+		c.RetryPolicy = &policy
+	}
+}
+
+// WithClientAggressiveRetryPolicy enables aggressive retry behavior for all requests
+func WithClientAggressiveRetryPolicy() ClientConfigOption {
+	policy := AggressiveRetryPolicy()
+	return func(c *ClientConfig) {
+		c.RetryPolicy = &policy
+	}
+}
+
+// WithClientConservativeRetryPolicy enables conservative retry behavior for all requests
+func WithClientConservativeRetryPolicy() ClientConfigOption {
+	policy := ConservativeRetryPolicy()
+	return func(c *ClientConfig) {
+		c.RetryPolicy = &policy
 	}
 }
