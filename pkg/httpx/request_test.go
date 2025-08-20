@@ -3,6 +3,7 @@ package httpx_test
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"testing"
@@ -186,6 +187,15 @@ func (s *RequestTestSuite) Test_RequestOpts() {
 				s.Equal("application/json", req.Header.Get("Content-Type"))
 			},
 		},
+		{
+			name: "WithStreaming",
+			opts: []httpx.RequestOption{httpx.WithStreaming()},
+			assertFn: func(req *http.Request) {
+				// WithStreaming doesn't affect the actual HTTP request,
+				// only the response processing, so just verify the request is valid
+				s.NotNil(req)
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -196,4 +206,345 @@ func (s *RequestTestSuite) Test_RequestOpts() {
 			s.Require().NoError(err)
 		})
 	}
+}
+
+// unmarshalableType represents a type that cannot be marshaled to JSON
+type unmarshalableType struct {
+	Channel chan int `json:"channel"` // channels cannot be marshaled to JSON
+}
+
+func (s *RequestTestSuite) TestWithJSONBodyError() {
+	// Test that WithJSONBody properly propagates JSON marshal errors
+	invalidData := unmarshalableType{Channel: make(chan int)}
+
+	req := httpx.NewRequest("POST", httpx.WithJSONBody(invalidData))
+	_, err := req.ToHTTPReq(httpx.ClientOptions{})
+
+	s.Require().Error(err)
+	s.Contains(err.Error(), "failed to marshal JSON body")
+}
+
+func (s *RequestTestSuite) TestConvenienceFunctionJSONError() {
+	// Test that convenience functions (GET, POST, etc.) also propagate JSON marshal errors
+	invalidData := unmarshalableType{Channel: make(chan int)}
+
+	_, err := httpx.POST[map[string]any](
+		httpx.WithBaseURL("http://example.com"),
+		httpx.WithPath("/test"),
+		httpx.WithJSONBody(invalidData),
+	)
+
+	s.Require().Error(err)
+	s.Contains(err.Error(), "failed to marshal JSON body")
+}
+
+const testResponseBody = `{"message":"test response"}`
+
+func (s *RequestTestSuite) TestWithStreaming() {
+	// Setup mock server
+	mockServer := NewMockServer()
+	defer mockServer.Close()
+
+	mockServer.SetupMock("GET", "/test", 200, testResponseBody)
+
+	// Test streaming mode
+	resp, err := httpx.GET[string](
+		httpx.WithBaseURL(mockServer.GetURL()),
+		httpx.WithPath("/test"),
+		httpx.WithStreaming(),
+	)
+
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+
+	// Verify streaming mode is enabled
+	s.True(resp.IsStreaming)
+	s.NotNil(resp.StreamBody)
+	s.Nil(resp.RawBody) // Should be nil in streaming mode
+	s.Nil(resp.Body)    // Should be nil in streaming mode
+
+	// Verify we can read from the stream
+	defer resp.StreamBody.Close()
+	content, err := io.ReadAll(resp.StreamBody)
+	s.Require().NoError(err)
+	s.JSONEq(testResponseBody, string(content))
+}
+
+func (s *RequestTestSuite) TestNonStreamingMode() {
+	// Setup mock server
+	mockServer := NewMockServer()
+	defer mockServer.Close()
+
+	mockServer.SetupMock("GET", "/test", 200, testResponseBody)
+
+	// Test non-streaming mode (default)
+	resp, err := httpx.GET[map[string]any](
+		httpx.WithBaseURL(mockServer.GetURL()),
+		httpx.WithPath("/test"),
+	)
+
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+
+	// Verify non-streaming mode
+	s.False(resp.IsStreaming)
+	s.Nil(resp.StreamBody) // Should be nil in non-streaming mode
+	s.NotNil(resp.RawBody) // Should contain raw bytes
+	s.NotNil(resp.Body)    // Should contain parsed body
+
+	// Verify the body was parsed correctly
+	body, ok := resp.Body.(map[string]any)
+	s.True(ok)
+	s.Equal("test response", body["message"])
+}
+
+func (s *RequestTestSuite) TestStreamingModeWithHTTPError() {
+	// Setup mock server with error response
+	mockServer := NewMockServer()
+	defer mockServer.Close()
+
+	testErrorBody := `{"error":"not found"}`
+	mockServer.SetupMock("GET", "/test", 404, testErrorBody)
+
+	// Test streaming mode with HTTP error
+	resp, err := httpx.GET[string](
+		httpx.WithBaseURL(mockServer.GetURL()),
+		httpx.WithPath("/test"),
+		httpx.WithStreaming(),
+	)
+
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+
+	// Verify streaming mode is enabled even for error responses
+	s.True(resp.IsStreaming)
+	s.NotNil(resp.StreamBody)
+	s.Equal(404, resp.StatusCode)
+
+	// Verify we can read the error response from stream
+	defer resp.StreamBody.Close()
+	content, err := io.ReadAll(resp.StreamBody)
+	s.Require().NoError(err)
+	s.JSONEq(testErrorBody, string(content))
+}
+
+func (s *RequestTestSuite) TestValidationErrors() {
+	tests := []struct {
+		name    string
+		option  httpx.RequestOption
+		wantErr string
+	}{
+		{
+			name:    "invalid empty URL",
+			option:  httpx.WithBaseURL(""),
+			wantErr: "invalid base URL: URL cannot be empty",
+		},
+		{
+			name:    "invalid URL without scheme",
+			option:  httpx.WithBaseURL("example.com"),
+			wantErr: "invalid base URL: URL must have a scheme (http/https): example.com",
+		},
+		{
+			name:    "invalid URL with unsupported scheme",
+			option:  httpx.WithBaseURL("ftp://example.com"),
+			wantErr: "invalid base URL: unsupported URL scheme 'ftp': only http and https are supported",
+		},
+		{
+			name:    "invalid URL without host",
+			option:  httpx.WithBaseURL("http://"),
+			wantErr: "invalid base URL: URL must have a host: http://",
+		},
+		{
+			name:    "invalid header name with space",
+			option:  httpx.WithHeader("Content Type", "application/json"),
+			wantErr: "invalid header name: invalid character ' ' in header name: Content Type",
+		},
+		{
+			name:    "invalid header name empty",
+			option:  httpx.WithHeader("", "value"),
+			wantErr: "invalid header name: header name cannot be empty",
+		},
+		{
+			name:    "invalid header value with control character",
+			option:  httpx.WithHeader("Content-Type", "application/json\x00"),
+			wantErr: "invalid header value for 'Content-Type': invalid control character at position 16 in header value",
+		},
+	}
+
+	for _, tt := range tests {
+		s.Run(tt.name, func() {
+			req := httpx.NewRequest("GET", tt.option)
+			_, err := req.ToHTTPReq(httpx.ClientOptions{})
+
+			s.Require().Error(err)
+			s.Contains(err.Error(), tt.wantErr)
+		})
+	}
+}
+
+func (s *RequestTestSuite) TestHTTPMethodValidation() {
+	tests := []struct {
+		name       string
+		method     string
+		shouldFail bool
+		wantErr    string
+	}{
+		{
+			name:       "valid GET method",
+			method:     "GET",
+			shouldFail: false,
+		},
+		{
+			name:       "valid lowercase post method",
+			method:     "post",
+			shouldFail: false,
+		},
+		{
+			name:       "invalid empty method",
+			method:     "",
+			shouldFail: true,
+			wantErr:    "invalid HTTP method: HTTP method cannot be empty",
+		},
+		{
+			name:       "invalid custom method",
+			method:     "CUSTOM",
+			shouldFail: true,
+			wantErr:    "invalid HTTP method: unsupported HTTP method: CUSTOM",
+		},
+	}
+
+	for _, tt := range tests {
+		s.Run(tt.name, func() {
+			req := httpx.NewRequest(tt.method)
+			_, err := req.ToHTTPReq(httpx.ClientOptions{})
+
+			if tt.shouldFail {
+				s.Require().Error(err)
+				s.Contains(err.Error(), tt.wantErr)
+			} else {
+				s.Require().NoError(err)
+			}
+		})
+	}
+}
+
+func (s *RequestTestSuite) TestWithHeadersValidation() {
+	invalidHeaders := http.Header{
+		"Valid-Header":   []string{"valid-value"},
+		"Invalid Header": []string{"value"}, // space in header name
+	}
+
+	req := httpx.NewRequest("GET", httpx.WithHeaders(invalidHeaders))
+	_, err := req.ToHTTPReq(httpx.ClientOptions{})
+
+	s.Require().Error(err)
+	s.Contains(err.Error(), "invalid header name")
+}
+
+func (s *RequestTestSuite) TestStructuredLogging() {
+	// Create a test logger that captures logs
+	var logBuffer strings.Builder
+	logger := slog.New(slog.NewTextHandler(&logBuffer, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	}))
+
+	// Setup mock server
+	mockServer := NewMockServer()
+	defer mockServer.Close()
+
+	mockServer.SetupMock("GET", "/test", 200, testResponseBody)
+
+	// Create client with logger
+	client := httpx.NewClient(
+		httpx.WithLogger(logger),
+		httpx.WithLogLevel(slog.LevelDebug),
+	)
+
+	// Make request
+	resp, err := client.Execute(
+		*httpx.NewRequest("GET",
+			httpx.WithBaseURL(mockServer.GetURL()),
+			httpx.WithPath("/test"),
+		),
+		"",
+	)
+
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+	s.Equal(200, resp.StatusCode)
+
+	// Verify logs were written
+	logs := logBuffer.String()
+	s.Contains(logs, "HTTP request")
+	s.Contains(logs, "HTTP response")
+	s.Contains(logs, "method=GET")
+	s.Contains(logs, "status_code=200")
+}
+
+func (s *RequestTestSuite) TestLoggingLevels() {
+	// Create a logger that only captures INFO and above
+	var logBuffer strings.Builder
+	logger := slog.New(slog.NewTextHandler(&logBuffer, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
+
+	// Setup mock server
+	mockServer := NewMockServer()
+	defer mockServer.Close()
+
+	mockServer.SetupMock("GET", "/test", 200, testResponseBody)
+
+	// Create client with logger set to INFO level
+	client := httpx.NewClient(
+		httpx.WithLogger(logger),
+		httpx.WithLogLevel(slog.LevelInfo),
+	)
+
+	// Make request
+	resp, err := client.Execute(
+		*httpx.NewRequest("GET",
+			httpx.WithBaseURL(mockServer.GetURL()),
+			httpx.WithPath("/test"),
+		),
+		"",
+	)
+
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+
+	// Verify that DEBUG request logs are NOT present (because log level is INFO)
+	// but INFO response logs ARE present
+	logs := logBuffer.String()
+	s.NotContains(logs, "HTTP request") // DEBUG level, should be filtered out
+	s.Contains(logs, "HTTP response")   // INFO level, should be present
+}
+
+func (s *RequestTestSuite) TestLoggingWithErrors() {
+	// Create a test logger
+	var logBuffer strings.Builder
+	logger := slog.New(slog.NewTextHandler(&logBuffer, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	}))
+
+	// Create client with logger
+	client := httpx.NewClient(
+		httpx.WithLogger(logger),
+		httpx.WithLogLevel(slog.LevelDebug),
+	)
+
+	// Make request to invalid URL to trigger error
+	_, err := client.Execute(
+		*httpx.NewRequest("GET",
+			httpx.WithBaseURL("http://invalid-domain-that-does-not-exist.com"),
+			httpx.WithPath("/test"),
+		),
+		"",
+	)
+
+	s.Require().Error(err)
+
+	// Verify error logs were written
+	logs := logBuffer.String()
+	s.Contains(logs, "Failed to execute HTTP request")
+	s.Contains(logs, "level=ERROR")
 }

@@ -1,6 +1,7 @@
 package httpx
 
 import (
+	"log/slog"
 	"net/http"
 	"time"
 )
@@ -19,9 +20,10 @@ type Client struct {
 // NewClient is a function that returns a new client with the given options and base URL
 func NewClient(opts ...ClientOption) *Client {
 	cOpts := ClientOptions{
-		Timeout: defaultTimeout,
-		Headers: http.Header{},
-		BaseURL: "",
+		Timeout:  defaultTimeout,
+		Headers:  http.Header{},
+		BaseURL:  "",
+		LogLevel: slog.LevelInfo, // Default log level
 	}
 	for _, opt := range opts {
 		opt(&cOpts)
@@ -78,5 +80,19 @@ func WithDefaultHeader(key string, values ...string) ClientOption {
 		}
 
 		c.Headers[key] = values
+	}
+}
+
+// WithLogger is a function that sets a structured logger for the client
+func WithLogger(logger *slog.Logger) ClientOption {
+	return func(c *ClientOptions) {
+		c.Logger = logger
+	}
+}
+
+// WithLogLevel is a function that sets the minimum log level for HTTP operations
+func WithLogLevel(level slog.Level) ClientOption {
+	return func(c *ClientOptions) {
+		c.LogLevel = level
 	}
 }

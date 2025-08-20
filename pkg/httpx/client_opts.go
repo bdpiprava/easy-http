@@ -3,6 +3,7 @@ package httpx
 import (
 	"context"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"time"
@@ -20,6 +21,8 @@ type ClientOptions struct {
 	Headers   http.Header
 	BasicAuth BasicAuth
 	Timeout   time.Duration
+	Logger    *slog.Logger // Optional structured logger
+	LogLevel  slog.Level   // Minimum log level for HTTP operations
 }
 
 // ClientOption is a function that takes a pointer to Options and modifies it
@@ -36,6 +39,8 @@ type RequestOptions struct {
 	Path        string
 	Timeout     time.Duration
 	Context     context.Context
+	Error       error // Stores errors from RequestOptions that can't return errors directly
+	Streaming   bool  // If true, response body will not be read into memory
 }
 
 // RequestOption is a function that takes a pointer to Options and modifies it

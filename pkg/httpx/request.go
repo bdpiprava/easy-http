@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"log"
 	"maps"
 	"net/http"
 	"net/url"
@@ -37,6 +36,10 @@ type Request struct {
 // NewRequest is a function that returns a new request with the given options
 func NewRequest(method string, opts ...RequestOption) *Request {
 	opts = append(opts, func(c *RequestOptions) {
+		if err := validateHTTPMethod(method); err != nil {
+			c.Error = errors.Wrap(err, "invalid HTTP method")
+			return
+		}
 		c.Method = method
 	})
 	return &Request{opts: opts}
@@ -45,6 +48,10 @@ func NewRequest(method string, opts ...RequestOption) *Request {
 // WithBaseURL is a function that sets the base URL for the request
 func WithBaseURL(baseURL string) RequestOption {
 	return func(c *RequestOptions) {
+		if err := validateURL(baseURL); err != nil {
+			c.Error = errors.Wrap(err, "invalid base URL")
+			return
+		}
 		c.BaseURL = baseURL
 	}
 }
@@ -63,6 +70,21 @@ func WithHeaders(headers http.Header) RequestOption {
 			return
 		}
 
+		// Validate all headers before copying
+		for key, values := range headers {
+			if err := validateHeaderName(key); err != nil {
+				c.Error = errors.Wrap(err, "invalid header name")
+				return
+			}
+
+			for _, value := range values {
+				if err := validateHeaderValue(value); err != nil {
+					c.Error = errors.Wrapf(err, "invalid header value for '%s'", key)
+					return
+				}
+			}
+		}
+
 		maps.Copy(c.Headers, headers)
 	}
 }
@@ -70,6 +92,18 @@ func WithHeaders(headers http.Header) RequestOption {
 // WithHeader is a function that sets the headers for the request
 func WithHeader(key string, values ...string) RequestOption {
 	return func(c *RequestOptions) {
+		if err := validateHeaderName(key); err != nil {
+			c.Error = errors.Wrap(err, "invalid header name")
+			return
+		}
+
+		for _, value := range values {
+			if err := validateHeaderValue(value); err != nil {
+				c.Error = errors.Wrapf(err, "invalid header value for '%s'", key)
+				return
+			}
+		}
+
 		if cur, ok := c.Headers[key]; ok {
 			c.Headers[key] = append(cur, values...)
 			return
@@ -114,17 +148,26 @@ func WithBody(body io.Reader) RequestOption {
 	}
 }
 
-// WithBody is a function that sets the body for the request
+// WithJSONBody is a function that sets the JSON body for the request
 func WithJSONBody(body any) RequestOption {
 	return func(c *RequestOptions) {
 		content, err := json.Marshal(body)
 		if err != nil {
-			log.Println(err)
+			c.Error = errors.Wrap(err, "failed to marshal JSON body")
 			return
 		}
 
 		c.Headers.Set("Content-Type", "application/json")
 		c.Body = bytes.NewReader(content)
+	}
+}
+
+// WithStreaming is a function that enables streaming mode for the response
+// In streaming mode, the response body is not read into memory and must be
+// manually closed by the caller using Response.StreamBody.Close()
+func WithStreaming() RequestOption {
+	return func(c *RequestOptions) {
+		c.Streaming = true
 	}
 }
 
@@ -160,18 +203,24 @@ func (r *Request) ToHTTPReq(clientOpts ClientOptions) (*http.Request, error) {
 
 // buildRequest is a function that builds the request from the given options
 func buildRequest(opts RequestOptions) (*http.Request, error) {
+	// Check for errors that occurred during option processing
+	if opts.Error != nil {
+		return nil, opts.Error
+	}
+
 	if _, ok := supportedMethods[strings.ToUpper(opts.Method)]; !ok {
 		return nil, errors.Errorf("unsupported method: %s", opts.Method)
 	}
 
-	req, err := http.NewRequest(opts.Method, opts.BaseURL, opts.Body)
+	ctx := opts.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	req, err := http.NewRequestWithContext(ctx, opts.Method, opts.BaseURL, opts.Body)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create request")
 	}
 
-	if opts.Context != nil {
-		req = req.WithContext(opts.Context)
-	}
 	req.URL.Path = path.Join(req.URL.Path, opts.Path)
 	req.Header = opts.Headers
 	req.URL.RawQuery = opts.QueryParams.Encode()
@@ -197,4 +246,89 @@ func buildOpts(clientOpts ClientOptions, request *Request) RequestOptions {
 		opt(&opts)
 	}
 	return opts
+}
+
+// validateURL validates if the provided URL is valid
+func validateURL(rawURL string) error {
+	if rawURL == "" {
+		return errors.New("URL cannot be empty")
+	}
+
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		return errors.Wrapf(err, "failed to parse URL: %s", rawURL)
+	}
+
+	if parsedURL.Scheme == "" {
+		return errors.Errorf("URL must have a scheme (http/https): %s", rawURL)
+	}
+
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return errors.Errorf("unsupported URL scheme '%s': only http and https are supported", parsedURL.Scheme)
+	}
+
+	if parsedURL.Host == "" {
+		return errors.Errorf("URL must have a host: %s", rawURL)
+	}
+
+	return nil
+}
+
+// validateHTTPMethod validates if the provided HTTP method is supported
+func validateHTTPMethod(method string) error {
+	if method == "" {
+		return errors.New("HTTP method cannot be empty")
+	}
+
+	upperMethod := strings.ToUpper(method)
+	if _, ok := supportedMethods[upperMethod]; !ok {
+		return errors.Errorf("unsupported HTTP method: %s", method)
+	}
+
+	return nil
+}
+
+// validateHeaderName validates if the provided header name is valid according to RFC 7230
+func validateHeaderName(name string) error {
+	if name == "" {
+		return errors.New("header name cannot be empty")
+	}
+
+	// Check for valid header name characters according to RFC 7230
+	// tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." /
+	//         "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA
+	for _, char := range name {
+		if !isValidHeaderNameChar(char) {
+			return errors.Errorf("invalid character '%c' in header name: %s", char, name)
+		}
+	}
+
+	return nil
+}
+
+// validateHeaderValue validates if the provided header value is valid according to RFC 7230
+func validateHeaderValue(value string) error {
+	// Header values can contain any printable ASCII characters and horizontal tab
+	// but should not contain control characters (except horizontal tab)
+	for i, char := range value {
+		if char < 0x20 && char != 0x09 { // Allow horizontal tab (0x09)
+			return errors.Errorf("invalid control character at position %d in header value", i)
+		}
+		if char > 0x7E { // Non-ASCII characters
+			return errors.Errorf("invalid non-ASCII character at position %d in header value", i)
+		}
+	}
+
+	return nil
+}
+
+// isValidHeaderNameChar checks if a character is valid in an HTTP header name
+func isValidHeaderNameChar(char rune) bool {
+	return (char >= 'A' && char <= 'Z') ||
+		(char >= 'a' && char <= 'z') ||
+		(char >= '0' && char <= '9') ||
+		char == '!' || char == '#' || char == '$' || char == '%' ||
+		char == '&' || char == '\'' || char == '*' || char == '+' ||
+		char == '-' || char == '.' || char == '^' || char == '_' ||
+		char == '`' || char == '|' || char == '~'
 }
