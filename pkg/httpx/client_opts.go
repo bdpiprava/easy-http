@@ -26,6 +26,9 @@ type ClientConfig struct {
 	DefaultBaseURL   string      // Default base URL for requests
 	DefaultHeaders   http.Header // Default headers applied to all requests
 	DefaultBasicAuth BasicAuth   // Default basic auth for all requests
+	
+	// Middleware configuration
+	Middlewares []Middleware // Ordered list of middlewares to apply to all requests
 }
 
 // ClientOptions is a struct that holds the options for the client

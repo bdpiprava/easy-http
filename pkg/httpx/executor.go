@@ -28,43 +28,66 @@ func execute(client *Client, request *Request, respType any) (*Response, error) 
 		requestOpts = buildOpts(client.clientOptions, request)
 	}
 
-	// Build HTTP request using appropriate architecture
-	var req *http.Request
-	var err error
-	var logger *slog.Logger
-	var logLevel slog.Level
+	// Always use middleware execution for clients with new config architecture
+	// This includes both new clients and old clients converted to new architecture
+	return executeWithMiddleware(client, request, requestOpts, respType)
+}
 
-	if client.config.Timeout != 0 || client.config.Logger != nil {
-		// Client was created with new architecture
-		req, err = buildRequestFromConfig(requestOpts)
-		logger = client.config.Logger
-		logLevel = client.config.LogLevel
-	} else {
-		// Client was created with old architecture
-		req, err = request.ToHTTPReq(client.clientOptions)
-		logger = client.clientOptions.Logger
-		logLevel = client.clientOptions.LogLevel
+// executeWithMiddleware executes the request using the new architecture with middleware support
+func executeWithMiddleware(client *Client, request *Request, requestOpts RequestOptions, respType any) (*Response, error) {
+	// Build the HTTP request
+	req, err := buildRequestFromConfig(requestOpts)
+	if err != nil {
+		if client.config.Logger != nil {
+			logError(client.config.Logger, "Failed to build HTTP request", err, req)
+		}
+		return nil, err
 	}
 
+	// Create the final handler that performs the actual HTTP call
+	finalHandler := func(ctx context.Context, httpReq *http.Request) (*http.Response, error) {
+		return client.client.Do(httpReq)
+	}
+
+	// Create middleware chain
+	chain := NewMiddlewareChain(finalHandler)
+	for _, middleware := range client.config.Middlewares {
+		chain.Add(middleware)
+	}
+
+	// Execute the middleware chain
+	ctx := req.Context()
+	resp, err := chain.Execute(ctx, req)
 	if err != nil {
-		logError(logger, "Failed to build HTTP request", err, req)
+		return nil, errors.Wrap(err, "failed to execute request")
+	}
+
+	return newResponse(resp, respType, requestOpts.Streaming)
+}
+
+// executeLegacy executes the request using the old architecture (backward compatibility)
+func executeLegacy(client *Client, request *Request, requestOpts RequestOptions, respType any) (*Response, error) {
+	// Build HTTP request using old architecture
+	req, err := request.ToHTTPReq(client.clientOptions)
+	if err != nil {
+		logError(client.clientOptions.Logger, "Failed to build HTTP request", err, req)
 		return nil, err
 	}
 
 	// Log the outgoing request
-	logRequest(logger, logLevel, req)
+	logRequest(client.clientOptions.Logger, client.clientOptions.LogLevel, req)
 
 	start := time.Now()
 	resp, err := client.client.Do(req)
 	duration := time.Since(start)
 
 	if err != nil {
-		logError(logger, "Failed to execute HTTP request", err, req)
+		logError(client.clientOptions.Logger, "Failed to execute HTTP request", err, req)
 		return nil, errors.Wrap(err, "failed to execute request")
 	}
 
 	// Log the response
-	logResponse(logger, logLevel, resp, duration)
+	logResponse(client.clientOptions.Logger, client.clientOptions.LogLevel, resp, duration)
 
 	return newResponse(resp, respType, requestOpts.Streaming)
 }

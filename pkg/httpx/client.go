@@ -32,6 +32,12 @@ func NewClientWithConfig(opts ...ClientConfigOption) *Client {
 		opt(&config)
 	}
 
+	// Add default logging middleware if logger is provided but no custom middlewares
+	if config.Logger != nil && len(config.Middlewares) == 0 {
+		loggingMiddleware := NewLoggingMiddleware(config.Logger, config.LogLevel)
+		config.Middlewares = []Middleware{loggingMiddleware}
+	}
+	
 	return &Client{
 		config:        config,
 		clientOptions: config.ToClientOptions(), // For backward compatibility
@@ -60,6 +66,12 @@ func NewClient(opts ...ClientOption) *Client {
 		DefaultBaseURL:   cOpts.BaseURL,
 		DefaultHeaders:   cOpts.Headers,
 		DefaultBasicAuth: cOpts.BasicAuth,
+	}
+	
+	// Add default logging middleware if logger is provided
+	if config.Logger != nil {
+		loggingMiddleware := NewLoggingMiddleware(config.Logger, config.LogLevel)
+		config.Middlewares = []Middleware{loggingMiddleware}
 	}
 
 	return &Client{
@@ -200,5 +212,22 @@ func WithClientDefaultBasicAuth(username, password string) ClientConfigOption {
 			Username: username,
 			Password: password,
 		}
+	}
+}
+
+// WithClientMiddleware adds middleware to the client's middleware chain
+func WithClientMiddleware(middleware Middleware) ClientConfigOption {
+	return func(c *ClientConfig) {
+		if c.Middlewares == nil {
+			c.Middlewares = make([]Middleware, 0)
+		}
+		c.Middlewares = append(c.Middlewares, middleware)
+	}
+}
+
+// WithClientMiddlewares sets the complete middleware chain for the client
+func WithClientMiddlewares(middlewares ...Middleware) ClientConfigOption {
+	return func(c *ClientConfig) {
+		c.Middlewares = middlewares
 	}
 }
