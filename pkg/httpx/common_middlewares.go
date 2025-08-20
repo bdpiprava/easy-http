@@ -175,7 +175,7 @@ func (m *RetryMiddleware) Execute(ctx context.Context, req *http.Request, next M
 		}
 
 		// Calculate delay with exponential backoff
-		multiplier := 1 << uint(attempt)
+		multiplier := 1 << min(attempt, 30) // Cap shift to prevent overflow
 		delay := time.Duration(float64(m.baseDelay) * float64(multiplier))
 		if delay > m.maxDelay {
 			delay = m.maxDelay
@@ -212,9 +212,9 @@ type MetricsCollector interface {
 // NoOpMetricsCollector is a no-op implementation for testing
 type NoOpMetricsCollector struct{}
 
-func (NoOpMetricsCollector) IncrementRequests(method, url string)                      {}
-func (NoOpMetricsCollector) IncrementErrors(method, url string, statusCode int)        {}
-func (NoOpMetricsCollector) RecordDuration(method, url string, duration time.Duration) {}
+func (NoOpMetricsCollector) IncrementRequests(_, _ string)               {}
+func (NoOpMetricsCollector) IncrementErrors(_, _ string, _ int)          {}
+func (NoOpMetricsCollector) RecordDuration(_, _ string, _ time.Duration) {}
 
 // NewMetricsMiddleware creates a new metrics middleware
 func NewMetricsMiddleware(collector MetricsCollector) *MetricsMiddleware {

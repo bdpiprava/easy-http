@@ -3,6 +3,7 @@ package httpx
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -111,7 +112,8 @@ func AdvancedDefaultRetryCondition(attempt int, err error, resp *http.Response) 
 
 	// Retry on network and timeout errors
 	if err != nil {
-		if httpErr, ok := err.(*HTTPError); ok {
+		httpErr := &HTTPError{}
+		if errors.As(err, &httpErr) {
 			return httpErr.Type == ErrorTypeNetwork || httpErr.Type == ErrorTypeTimeout
 		}
 		return true // Retry on unknown errors
@@ -134,7 +136,8 @@ func AggressiveRetryCondition(attempt int, err error, resp *http.Response) bool 
 
 	// Retry on various error types
 	if err != nil {
-		if httpErr, ok := err.(*HTTPError); ok {
+		httpErr := &HTTPError{}
+		if errors.As(err, &httpErr) {
 			switch httpErr.Type {
 			case ErrorTypeNetwork, ErrorTypeTimeout, ErrorTypeServer:
 				return true
@@ -164,7 +167,8 @@ func ConservativeRetryCondition(attempt int, err error, resp *http.Response) boo
 
 	// Only retry on clear network issues
 	if err != nil {
-		if httpErr, ok := err.(*HTTPError); ok {
+		httpErr := &HTTPError{}
+		if errors.As(err, &httpErr) {
 			return httpErr.Type == ErrorTypeNetwork
 		}
 		return false
@@ -220,7 +224,7 @@ func (m *AdvancedRetryMiddleware) Execute(ctx context.Context, req *http.Request
 	var lastErr error
 	var lastResp *http.Response
 
-	for attempt := 0; attempt < m.policy.MaxAttempts; attempt++ {
+	for attempt := range m.policy.MaxAttempts {
 		// Clone the request for retry attempts
 		reqClone := req.Clone(ctx)
 
@@ -263,7 +267,8 @@ func (m *AdvancedRetryMiddleware) shouldRetry(attempt int, err error, resp *http
 
 	// Check against configured retryable error types
 	if err != nil {
-		if httpErr, ok := err.(*HTTPError); ok {
+		httpErr := &HTTPError{}
+		if errors.As(err, &httpErr) {
 			for _, retryableType := range m.policy.RetryableErrorTypes {
 				if httpErr.Type == retryableType {
 					return true
@@ -382,7 +387,8 @@ func (e *RetryableError) Unwrap() error {
 
 // IsRetryable checks if an error is explicitly marked as retryable
 func IsRetryable(err error) bool {
-	_, ok := err.(*RetryableError)
+	retryableError := &RetryableError{}
+	ok := errors.As(err, &retryableError)
 	return ok
 }
 

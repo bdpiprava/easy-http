@@ -22,7 +22,7 @@ func ExampleMiddleware() {
 			fmt.Printf("Custom header: %s\n", r.Header.Get("X-Custom"))
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"result": "success"}`))
+		_, _ = w.Write([]byte(`{"result": "success"}`))
 	}))
 	defer server.Close()
 
@@ -101,9 +101,9 @@ func (m *CustomHeaderMiddleware) Execute(ctx context.Context, req *http.Request,
 
 // DemoInterceptors demonstrates how to use interceptors
 func DemoInterceptors() {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"intercepted": true}`))
+		_, _ = w.Write([]byte(`{"intercepted": true}`))
 	}))
 	defer server.Close()
 
@@ -144,7 +144,7 @@ type ExampleRequestInterceptor struct {
 	intercepted bool
 }
 
-func (i *ExampleRequestInterceptor) BeforeRequest(ctx context.Context, req *http.Request) error {
+func (i *ExampleRequestInterceptor) BeforeRequest(_ context.Context, req *http.Request) error {
 	i.intercepted = true
 	req.Header.Set("X-Intercepted-Request", "true")
 	return nil
@@ -154,7 +154,7 @@ type ExampleResponseInterceptor struct {
 	intercepted bool
 }
 
-func (i *ExampleResponseInterceptor) AfterResponse(ctx context.Context, req *http.Request, resp *http.Response) (*http.Response, error) {
+func (i *ExampleResponseInterceptor) AfterResponse(_ context.Context, _ *http.Request, resp *http.Response) (*http.Response, error) {
 	i.intercepted = true
 	resp.Header.Set("X-Intercepted-Response", "true")
 	return resp, nil
@@ -162,11 +162,11 @@ func (i *ExampleResponseInterceptor) AfterResponse(ctx context.Context, req *htt
 
 // Run the examples in a test to ensure they work
 func TestMiddlewareExamples(t *testing.T) {
-	t.Run("example middleware", func(t *testing.T) {
+	t.Run("example middleware", func(_ *testing.T) {
 		ExampleMiddleware()
 	})
 
-	t.Run("demo interceptors", func(t *testing.T) {
+	t.Run("demo interceptors", func(_ *testing.T) {
 		DemoInterceptors()
 	})
 }

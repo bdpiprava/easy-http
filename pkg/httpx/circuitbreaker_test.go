@@ -9,8 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bdpiprava/easy-http/pkg/httpx"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/bdpiprava/easy-http/pkg/httpx"
 )
 
 func TestCircuitBreakerConfig(t *testing.T) {
@@ -153,7 +155,7 @@ func TestCircuitBreakerStates(t *testing.T) {
 		config.ReadyToTrip = func(counts httpx.Counts) bool {
 			return counts.TotalFailures >= 2 // Trip after 2 failures
 		}
-		config.OnStateChange = func(name string, from, to httpx.CircuitBreakerState) {
+		config.OnStateChange = func(_ string, _, to httpx.CircuitBreakerState) {
 			mu.Lock()
 			stateChanges = append(stateChanges, to)
 			mu.Unlock()
@@ -162,19 +164,21 @@ func TestCircuitBreakerStates(t *testing.T) {
 		cb := httpx.NewCircuitBreakerMiddleware(config)
 
 		// Create a mock next function that always fails
-		next := func(ctx context.Context, req *http.Request) (*http.Response, error) {
+		next := func(_ context.Context, _ *http.Request) (*http.Response, error) {
 			return nil, errors.New("service error")
 		}
 
 		ctx := context.Background()
-		req, _ := http.NewRequest("GET", "http://example.com", nil)
+		req, _ := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
 
 		// First failure - should remain closed
-		cb.Execute(ctx, req, next)
+		resp, _ := cb.Execute(ctx, req, next)
+		defer closeSafely(resp)
 		assert.Equal(t, httpx.StateClosed, cb.State())
 
 		// Second failure - should trip to open
-		cb.Execute(ctx, req, next)
+		resp, _ = cb.Execute(ctx, req, next)
+		defer closeSafely(resp)
 		assert.Equal(t, httpx.StateOpen, cb.State())
 
 		mu.Lock()
@@ -191,19 +195,21 @@ func TestCircuitBreakerStates(t *testing.T) {
 		cb := httpx.NewCircuitBreakerMiddleware(config)
 
 		// Cause the circuit breaker to trip
-		next := func(ctx context.Context, req *http.Request) (*http.Response, error) {
+		next := func(_ context.Context, _ *http.Request) (*http.Response, error) {
 			return nil, errors.New("service error")
 		}
 
 		ctx := context.Background()
-		req, _ := http.NewRequest("GET", "http://example.com", nil)
+		req, _ := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
 
 		// First request fails and trips the circuit breaker
-		cb.Execute(ctx, req, next)
+		resp, _ := cb.Execute(ctx, req, next)
+		defer closeSafely(resp)
 		assert.Equal(t, httpx.StateOpen, cb.State())
 
 		// Second request should be rejected immediately
 		resp, err := cb.Execute(ctx, req, next)
+		defer closeSafely(resp)
 		assert.Nil(t, resp)
 		assert.Error(t, err)
 		assert.True(t, httpx.IsCircuitBreakerError(err))
@@ -220,27 +226,33 @@ func TestCircuitBreakerStates(t *testing.T) {
 		cb := httpx.NewCircuitBreakerMiddleware(config)
 
 		// Trip the circuit breaker
-		next := func(ctx context.Context, req *http.Request) (*http.Response, error) {
+		next := func(_ context.Context, _ *http.Request) (*http.Response, error) {
 			return nil, errors.New("service error")
 		}
 
 		ctx := context.Background()
-		req, _ := http.NewRequest("GET", "http://example.com", nil)
+		req, _ := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
 
-		cb.Execute(ctx, req, next)
+		resp, _ := cb.Execute(ctx, req, next)
+		if resp != nil && resp.Body != nil {
+			resp.Body.Close()
+		}
 		assert.Equal(t, httpx.StateOpen, cb.State())
 
 		// Wait for timeout to pass
 		time.Sleep(20 * time.Millisecond)
 
 		// Create a successful next function
-		successNext := func(ctx context.Context, req *http.Request) (*http.Response, error) {
+		successNext := func(_ context.Context, _ *http.Request) (*http.Response, error) {
 			return &http.Response{StatusCode: 200}, nil
 		}
 
 		// Request should succeed and circuit breaker should close
 		resp, err := cb.Execute(ctx, req, successNext)
-		assert.NoError(t, err)
+		if err == nil && resp != nil && resp.Body != nil {
+			resp.Body.Close()
+		}
+		require.NoError(t, err)
 		assert.NotNil(t, resp)
 		assert.Equal(t, 200, resp.StatusCode)
 		assert.Equal(t, httpx.StateClosed, cb.State())
@@ -260,15 +272,18 @@ func TestCircuitBreakerMiddleware(t *testing.T) {
 		config := httpx.DefaultCircuitBreakerConfig()
 		cb := httpx.NewCircuitBreakerMiddleware(config)
 
-		next := func(ctx context.Context, req *http.Request) (*http.Response, error) {
+		next := func(_ context.Context, _ *http.Request) (*http.Response, error) {
 			return &http.Response{StatusCode: 200}, nil
 		}
 
 		ctx := context.Background()
-		req, _ := http.NewRequest("GET", "http://example.com", nil)
+		req, _ := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
 
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			resp, err := cb.Execute(ctx, req, next)
+			if err == nil && resp != nil && resp.Body != nil {
+				resp.Body.Close()
+			}
 			assert.NoError(t, err)
 			assert.NotNil(t, resp)
 			assert.Equal(t, 200, resp.StatusCode)
@@ -290,15 +305,16 @@ func TestCircuitBreakerMiddleware(t *testing.T) {
 		cb := httpx.NewCircuitBreakerMiddleware(config)
 
 		// Test with HTTPError
-		next := func(ctx context.Context, req *http.Request) (*http.Response, error) {
+		next := func(_ context.Context, req *http.Request) (*http.Response, error) {
 			return nil, httpx.NetworkError("connection failed", nil, req)
 		}
 
 		ctx := context.Background()
-		req, _ := http.NewRequest("GET", "http://example.com", nil)
+		req, _ := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
 
 		// First request should fail and trip circuit breaker
 		resp, err := cb.Execute(ctx, req, next)
+		defer closeSafely(resp)
 		assert.Nil(t, resp)
 		assert.Error(t, err)
 		assert.True(t, httpx.IsNetworkError(err))
@@ -306,6 +322,7 @@ func TestCircuitBreakerMiddleware(t *testing.T) {
 
 		// Second request should be blocked by circuit breaker
 		resp, err = cb.Execute(ctx, req, next)
+		defer closeSafely(resp)
 		assert.Nil(t, resp)
 		assert.Error(t, err)
 		assert.True(t, httpx.IsCircuitBreakerError(err))
@@ -315,15 +332,15 @@ func TestCircuitBreakerMiddleware(t *testing.T) {
 func TestCircuitBreakerWithServer(t *testing.T) {
 	t.Run("circuit breaker with real HTTP server", func(t *testing.T) {
 		failureCount := 0
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			failureCount++
 			if failureCount <= 2 { // Only first 2 requests fail
 				w.WriteHeader(http.StatusInternalServerError)
-				w.Write([]byte(`{"error": "server error"}`))
+				_, _ = w.Write([]byte(`{"error": "server error"}`))
 				return
 			}
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"message": "success"}`))
+			_, _ = w.Write([]byte(`{"message": "success"}`))
 		}))
 		defer server.Close()
 
@@ -343,7 +360,7 @@ func TestCircuitBreakerWithServer(t *testing.T) {
 
 		// First request - fails (500 error)
 		response1, err1 := client.Execute(*req, map[string]any{})
-		assert.NoError(t, err1) // HTTP errors don't cause Execute to fail
+		require.NoError(t, err1) // HTTP errors don't cause Execute to fail
 		assert.Equal(t, http.StatusInternalServerError, response1.StatusCode)
 
 		// Second request - fails and trips circuit breaker
@@ -380,7 +397,7 @@ func TestCircuitBreakerConcurrency(t *testing.T) {
 		requestCount := 0
 		var mu sync.Mutex
 
-		next := func(ctx context.Context, req *http.Request) (*http.Response, error) {
+		next := func(_ context.Context, _ *http.Request) (*http.Response, error) {
 			mu.Lock()
 			requestCount++
 			count := requestCount
@@ -399,13 +416,14 @@ func TestCircuitBreakerConcurrency(t *testing.T) {
 		var wg sync.WaitGroup
 		var results sync.Map
 
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			wg.Add(1)
 			go func(id int) {
 				defer wg.Done()
 
-				req, _ := http.NewRequest("GET", "http://example.com", nil)
+				req, _ := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
 				resp, err := cb.Execute(ctx, req, next)
+				defer closeSafely(resp)
 
 				results.Store(id, map[string]interface{}{
 					"response": resp,
@@ -419,7 +437,7 @@ func TestCircuitBreakerConcurrency(t *testing.T) {
 		// Check results
 		var successCount, errorCount, circuitBreakerErrorCount int
 
-		results.Range(func(key, value interface{}) bool {
+		results.Range(func(_, value interface{}) bool {
 			result := value.(map[string]interface{})
 			resp := result["response"]
 			err := result["error"]
@@ -436,7 +454,7 @@ func TestCircuitBreakerConcurrency(t *testing.T) {
 		})
 
 		// Should have some failures and/or circuit breaker blocks
-		assert.True(t, errorCount > 0, "Should have some failed requests")
+		assert.Positive(t, errorCount, "Should have some failed requests")
 		// Note: successCount might be 0 if circuit breaker trips quickly
 
 		// Verify circuit breaker was activated
@@ -446,7 +464,7 @@ func TestCircuitBreakerConcurrency(t *testing.T) {
 
 func TestCircuitBreakerError(t *testing.T) {
 	t.Run("circuit breaker error creation", func(t *testing.T) {
-		req, _ := http.NewRequest("GET", "http://example.com", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), "GET", "http://example.com", nil)
 		err := httpx.CircuitBreakerError("circuit breaker is open", req)
 
 		assert.Equal(t, httpx.ErrorTypeMiddleware, err.Type)
@@ -455,7 +473,7 @@ func TestCircuitBreakerError(t *testing.T) {
 	})
 
 	t.Run("is circuit breaker error detection", func(t *testing.T) {
-		req, _ := http.NewRequest("GET", "http://example.com", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), "GET", "http://example.com", nil)
 
 		// Circuit breaker error
 		cbErr := httpx.CircuitBreakerError("circuit breaker is open", req)
@@ -474,7 +492,7 @@ func TestCircuitBreakerError(t *testing.T) {
 func TestCircuitBreakerIntegrationWithRetry(t *testing.T) {
 	t.Run("circuit breaker with retry policy", func(t *testing.T) {
 		failureCount := 0
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			failureCount++
 			if failureCount == 1 {
 				// First attempt fails
@@ -483,7 +501,7 @@ func TestCircuitBreakerIntegrationWithRetry(t *testing.T) {
 			}
 			// Retry succeeds
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"success": true}`))
+			_, _ = w.Write([]byte(`{"success": true}`))
 		}))
 		defer server.Close()
 
@@ -506,7 +524,7 @@ func TestCircuitBreakerIntegrationWithRetry(t *testing.T) {
 		response, err := client.Execute(*req, map[string]any{})
 
 		// Should succeed after retries
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, response)
 		assert.Equal(t, http.StatusOK, response.StatusCode)
 
@@ -514,4 +532,12 @@ func TestCircuitBreakerIntegrationWithRetry(t *testing.T) {
 		// Note: We can't directly access the circuit breaker state from the client,
 		// but we can infer it worked correctly since the request succeeded
 	})
+}
+
+func closeSafely(closable *http.Response) {
+	if closable == nil || closable.Body == nil {
+		return
+	}
+
+	_ = closable.Body.Close()
 }

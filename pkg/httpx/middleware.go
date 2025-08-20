@@ -44,7 +44,7 @@ func (c *MiddlewareChain) Execute(ctx context.Context, req *http.Request) (*http
 	}
 
 	// Build the chain by wrapping each middleware around the next
-	var current MiddlewareFunc = c.finalFunc
+	var current = c.finalFunc
 
 	// Start from the end and work backwards to build the chain
 	for i := len(c.middlewares) - 1; i >= 0; i-- {

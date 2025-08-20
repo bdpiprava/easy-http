@@ -117,7 +117,7 @@ func TestClientConfigArchitectureIntegration(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"message": "success", "path": "` + r.URL.Path + `"}`))
+		_, _ = w.Write([]byte(`{"message": "success", "path": "` + r.URL.Path + `"}`))
 	}))
 	defer server.Close()
 
@@ -168,7 +168,7 @@ func TestBackwardCompatibilityArchitecture(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"message": "legacy", "method": "` + r.Method + `"}`))
+		_, _ = w.Write([]byte(`{"message": "legacy", "method": "` + r.Method + `"}`))
 	}))
 	defer server.Close()
 
@@ -214,13 +214,13 @@ func TestBasicAuthSupport(t *testing.T) {
 		if !ok {
 			w.Header().Set("WWW-Authenticate", `Basic realm="test"`)
 			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte(`{"error": "unauthorized"}`))
+			_, _ = w.Write([]byte(`{"error": "unauthorized"}`))
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"user": "` + username + `", "authenticated": true}`))
+		_, _ = w.Write([]byte(`{"user": "` + username + `", "authenticated": true}`))
 	}))
 	defer server.Close()
 

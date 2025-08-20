@@ -2,6 +2,7 @@ package httpx
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -55,13 +56,14 @@ func DefaultCircuitBreakerConfig() CircuitBreakerConfig {
 			// Trip if failure rate is 50% or higher with at least 5 requests
 			return counts.Requests >= 5 && counts.TotalFailures >= counts.Requests/2
 		},
-		OnStateChange: func(name string, from CircuitBreakerState, to CircuitBreakerState) {
+		OnStateChange: func(_ string, _ CircuitBreakerState, _ CircuitBreakerState) {
 			// Default no-op state change handler
 		},
 		IsSuccessful: func(err error, statusCode int) bool {
 			// Consider 5xx server errors and network/timeout errors as failures
 			if err != nil {
-				if httpErr, ok := err.(*HTTPError); ok {
+				httpErr := &HTTPError{}
+				if errors.As(err, &httpErr) {
 					return httpErr.Type != ErrorTypeServer &&
 						httpErr.Type != ErrorTypeNetwork &&
 						httpErr.Type != ErrorTypeTimeout
@@ -387,7 +389,8 @@ func CircuitBreakerError(message string, req *http.Request) *HTTPError {
 
 // IsCircuitBreakerError checks if an error is a circuit breaker error
 func IsCircuitBreakerError(err error) bool {
-	if httpErr, ok := err.(*HTTPError); ok {
+	httpErr := &HTTPError{}
+	if errors.As(err, &httpErr) {
 		return httpErr.Type == ErrorTypeMiddleware &&
 			(contains(httpErr.Message, "circuit breaker") || contains(httpErr.Message, "open") || contains(httpErr.Message, "half-open"))
 	}

@@ -16,13 +16,13 @@ func TestBasicAuthFunctionality(t *testing.T) {
 		username, password, ok := r.BasicAuth()
 		if !ok {
 			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte(`{"error": "no auth provided"}`))
+			_, _ = w.Write([]byte(`{"error": "no auth provided"}`))
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"username": "` + username + `", "password": "` + password + `", "authenticated": true}`))
+		_, _ = w.Write([]byte(`{"username": "` + username + `", "password": "` + password + `", "authenticated": true}`))
 	}))
 	defer server.Close()
 

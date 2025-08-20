@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"path"
 	"strings"
-	"time"
 
 	"github.com/pkg/errors"
 )
@@ -34,7 +33,7 @@ func execute(client *Client, request *Request, respType any) (*Response, error) 
 }
 
 // executeWithMiddleware executes the request using the new architecture with middleware support
-func executeWithMiddleware(client *Client, request *Request, requestOpts RequestOptions, respType any) (*Response, error) {
+func executeWithMiddleware(client *Client, _ *Request, requestOpts RequestOptions, respType any) (*Response, error) {
 	// Build the HTTP request
 	req, err := buildRequestFromConfig(requestOpts)
 	if err != nil {
@@ -47,7 +46,7 @@ func executeWithMiddleware(client *Client, request *Request, requestOpts Request
 	}
 
 	// Create the final handler that performs the actual HTTP call
-	finalHandler := func(ctx context.Context, httpReq *http.Request) (*http.Response, error) {
+	finalHandler := func(_ context.Context, httpReq *http.Request) (*http.Response, error) {
 		return client.client.Do(httpReq)
 	}
 
@@ -67,72 +66,6 @@ func executeWithMiddleware(client *Client, request *Request, requestOpts Request
 	}
 
 	return newResponse(resp, respType, requestOpts.Streaming)
-}
-
-// executeLegacy executes the request using the old architecture (backward compatibility)
-func executeLegacy(client *Client, request *Request, requestOpts RequestOptions, respType any) (*Response, error) {
-	// Build HTTP request using old architecture
-	req, err := request.ToHTTPReq(client.clientOptions)
-	if err != nil {
-		httpErr := ClassifyError(err, req, nil)
-		logError(client.clientOptions.Logger, "Failed to build HTTP request", httpErr, req)
-		return nil, httpErr
-	}
-
-	// Log the outgoing request
-	logRequest(client.clientOptions.Logger, client.clientOptions.LogLevel, req)
-
-	start := time.Now()
-	resp, err := client.client.Do(req)
-	duration := time.Since(start)
-
-	if err != nil {
-		httpErr := ClassifyError(err, req, resp)
-		logError(client.clientOptions.Logger, "Failed to execute HTTP request", httpErr, req)
-		return nil, httpErr
-	}
-
-	// Log the response
-	logResponse(client.clientOptions.Logger, client.clientOptions.LogLevel, resp, duration)
-
-	return newResponse(resp, respType, requestOpts.Streaming)
-}
-
-// logRequest logs the outgoing HTTP request with structured logging
-func logRequest(logger *slog.Logger, minLevel slog.Level, req *http.Request) {
-	if logger == nil || !logger.Enabled(context.Background(), minLevel) {
-		return
-	}
-
-	logger.LogAttrs(context.Background(), slog.LevelDebug, "HTTP request",
-		slog.String("method", req.Method),
-		slog.String("url", req.URL.String()),
-		slog.String("host", req.Host),
-		slog.Any("headers", req.Header),
-	)
-}
-
-// logResponse logs the HTTP response with structured logging
-func logResponse(logger *slog.Logger, minLevel slog.Level, resp *http.Response, duration time.Duration) {
-	if logger == nil || !logger.Enabled(context.Background(), minLevel) {
-		return
-	}
-
-	level := slog.LevelInfo
-	if resp.StatusCode >= 400 {
-		level = slog.LevelWarn
-	}
-	if resp.StatusCode >= 500 {
-		level = slog.LevelError
-	}
-
-	logger.LogAttrs(context.Background(), level, "HTTP response",
-		slog.Int("status_code", resp.StatusCode),
-		slog.String("status", resp.Status),
-		slog.Duration("duration", duration),
-		slog.String("content_length", resp.Header.Get("Content-Length")),
-		slog.String("content_type", resp.Header.Get("Content-Type")),
-	)
 }
 
 // buildRequestFromConfig builds an HTTP request using the new configuration architecture

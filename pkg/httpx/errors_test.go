@@ -23,7 +23,7 @@ func TestErrorClassification(t *testing.T) {
 			IsNotFound: true,
 		}
 
-		req, _ := http.NewRequest("GET", "http://invalid-domain.com", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), "GET", "http://invalid-domain.com", nil)
 		httpErr := httpx.ClassifyError(dnsErr, req, nil)
 
 		assert.Equal(t, httpx.ErrorTypeNetwork, httpErr.Type)
@@ -42,7 +42,7 @@ func TestErrorClassification(t *testing.T) {
 			},
 		}
 
-		req, _ := http.NewRequest("GET", "http://slow-server.com", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), "GET", "http://slow-server.com", nil)
 		httpErr := httpx.ClassifyError(timeoutErr, req, nil)
 
 		assert.Equal(t, httpx.ErrorTypeTimeout, httpErr.Type)
@@ -50,7 +50,7 @@ func TestErrorClassification(t *testing.T) {
 	})
 
 	t.Run("context timeout errors", func(t *testing.T) {
-		req, _ := http.NewRequest("GET", "http://example.com", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), "GET", "http://example.com", nil)
 		httpErr := httpx.ClassifyError(context.DeadlineExceeded, req, nil)
 
 		assert.Equal(t, httpx.ErrorTypeTimeout, httpErr.Type)
@@ -58,7 +58,7 @@ func TestErrorClassification(t *testing.T) {
 	})
 
 	t.Run("client errors (4xx)", func(t *testing.T) {
-		req, _ := http.NewRequest("GET", "http://example.com/not-found", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), "GET", "http://example.com/not-found", nil)
 		resp := &http.Response{
 			StatusCode: 404,
 			Status:     "404 Not Found",
@@ -109,7 +109,7 @@ func TestErrorWrapping(t *testing.T) {
 		originalErr := errors.New("original error")
 		httpErr := httpx.NetworkError("network failure", originalErr, nil)
 
-		assert.True(t, errors.Is(httpErr, originalErr))
+		require.ErrorIs(t, httpErr, originalErr)
 		assert.Equal(t, originalErr, errors.Unwrap(httpErr))
 	})
 
@@ -118,14 +118,16 @@ func TestErrorWrapping(t *testing.T) {
 		err2 := httpx.ClientError("another client error", nil, &http.Response{StatusCode: 400})
 		err3 := httpx.ServerError("server error", nil, &http.Response{StatusCode: 500})
 
-		assert.True(t, errors.Is(err1, err2))
-		assert.False(t, errors.Is(err1, err3))
+		require.ErrorIs(t, err1, err2)
+		assert.NotErrorIs(t, err1, err3)
 	})
 }
 
+type testContextKey string
+
 func TestErrorContext(t *testing.T) {
 	t.Run("request context preservation", func(t *testing.T) {
-		ctx := context.WithValue(context.Background(), "test-key", "test-value")
+		ctx := context.WithValue(context.Background(), testContextKey("test-key"), "test-value")
 		req, _ := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
 
 		httpErr := httpx.NetworkError("network error", nil, req)
@@ -154,16 +156,17 @@ func TestIntegrationWithHTTPClient(t *testing.T) {
 		require.Error(t, err)
 		assert.True(t, httpx.IsNetworkError(err), "Expected network error, got: %T", err)
 
-		if httpErr, ok := err.(*httpx.HTTPError); ok {
+		httpErr := &httpx.HTTPError{}
+		if errors.As(err, &httpErr) {
 			assert.NotNil(t, httpErr.Request)
 			assert.Contains(t, httpErr.Request.URL.String(), "invalid-domain-that-does-not-exist.com")
 		}
 	})
 
 	t.Run("client error integration", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(`{"error": "bad request"}`))
+			_, _ = w.Write([]byte(`{"error": "bad request"}`))
 		}))
 		defer server.Close()
 
@@ -181,9 +184,9 @@ func TestIntegrationWithHTTPClient(t *testing.T) {
 	})
 
 	t.Run("server error integration", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(`{"error": "internal server error"}`))
+			_, _ = w.Write([]byte(`{"error": "internal server error"}`))
 		}))
 		defer server.Close()
 
@@ -316,7 +319,7 @@ func TestErrorHelperFunctions(t *testing.T) {
 	})
 
 	t.Run("GetRequestContext", func(t *testing.T) {
-		ctx := context.WithValue(context.Background(), "key", "value")
+		ctx := context.WithValue(context.Background(), testContextKey("key"), "value")
 		req, _ := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
 		httpErr := httpx.NetworkError("network error", nil, req)
 

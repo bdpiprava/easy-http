@@ -11,9 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bdpiprava/easy-http/pkg/httpx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bdpiprava/easy-http/pkg/httpx"
 )
 
 // TestMiddleware is a simple test middleware for testing
@@ -77,7 +78,7 @@ func (m *MockMetricsCollector) IncrementRequests(method, url string) {
 	m.requests[key]++
 }
 
-func (m *MockMetricsCollector) IncrementErrors(method, url string, statusCode int) {
+func (m *MockMetricsCollector) IncrementErrors(method, url string, _ int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	key := method + " " + url
@@ -119,7 +120,7 @@ func TestMiddlewareChain(t *testing.T) {
 
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"middleware_headers": "received"}`))
+			_, _ = w.Write([]byte(`{"middleware_headers": "received"}`))
 		}))
 		defer server.Close()
 
@@ -162,7 +163,7 @@ func TestMiddlewareChain(t *testing.T) {
 
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"test1": "` + test1Header + `", "test2": "` + test2Header + `"}`))
+			_, _ = w.Write([]byte(`{"test1": "` + test1Header + `", "test2": "` + test2Header + `"}`))
 		}))
 		defer server.Close()
 
@@ -195,10 +196,10 @@ func TestMiddlewareChain(t *testing.T) {
 
 func TestLoggingMiddleware(t *testing.T) {
 	t.Run("logging middleware captures requests and responses", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"logged": true}`))
+			_, _ = w.Write([]byte(`{"logged": true}`))
 		}))
 		defer server.Close()
 
@@ -235,17 +236,17 @@ func TestLoggingMiddleware(t *testing.T) {
 func TestRetryMiddleware(t *testing.T) {
 	t.Run("retry middleware retries on server errors", func(t *testing.T) {
 		attemptCount := 0
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			attemptCount++
 			if attemptCount < 3 {
 				w.WriteHeader(http.StatusInternalServerError)
-				w.Write([]byte(`{"error": "server error"}`))
+				_, _ = w.Write([]byte(`{"error": "server error"}`))
 				return
 			}
 
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"attempt": ` + string(rune(attemptCount+'0')) + `}`))
+			_, _ = w.Write([]byte(`{"attempt": ` + string(rune(attemptCount+'0')) + `}`))
 		}))
 		defer server.Close()
 
@@ -278,10 +279,10 @@ func TestRetryMiddleware(t *testing.T) {
 
 	t.Run("retry middleware stops retrying on client errors", func(t *testing.T) {
 		attemptCount := 0
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			attemptCount++
 			w.WriteHeader(http.StatusBadRequest) // 4xx error should not retry
-			w.Write([]byte(`{"error": "bad request"}`))
+			_, _ = w.Write([]byte(`{"error": "bad request"}`))
 		}))
 		defer server.Close()
 
@@ -306,10 +307,10 @@ func TestRetryMiddleware(t *testing.T) {
 
 func TestMetricsMiddleware(t *testing.T) {
 	t.Run("metrics middleware collects request metrics", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"metrics": "collected"}`))
+			_, _ = w.Write([]byte(`{"metrics": "collected"}`))
 		}))
 		defer server.Close()
 
@@ -344,7 +345,7 @@ func TestUserAgentMiddleware(t *testing.T) {
 			userAgent := r.Header.Get("User-Agent")
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"user_agent": "` + userAgent + `"}`))
+			_, _ = w.Write([]byte(`{"user_agent": "` + userAgent + `"}`))
 		}))
 		defer server.Close()
 
@@ -371,10 +372,10 @@ func TestUserAgentMiddleware(t *testing.T) {
 
 func TestMiddlewareWithLegacyClient(t *testing.T) {
 	t.Run("legacy client without middleware works normally", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"legacy": true}`))
+			_, _ = w.Write([]byte(`{"legacy": true}`))
 		}))
 		defer server.Close()
 

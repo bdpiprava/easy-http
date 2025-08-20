@@ -2,6 +2,7 @@ package httpx
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -134,7 +135,8 @@ func ClassifyError(err error, req *http.Request, resp *http.Response) *HTTPError
 	}
 
 	// If it's already an HTTPError, return as is
-	if httpErr, ok := err.(*HTTPError); ok {
+	httpErr := &HTTPError{}
+	if errors.As(err, &httpErr) {
 		return httpErr
 	}
 
@@ -159,7 +161,8 @@ func classifyErrorType(err error) (ErrorType, string) {
 	}
 
 	// Check for URL validation errors
-	if _, ok := err.(*url.Error); ok {
+	urlErr := &url.Error{}
+	if errors.As(err, &urlErr) {
 		if strings.Contains(errStr, "invalid") || strings.Contains(errStr, "parse") {
 			return ErrorTypeValidation, "invalid URL"
 		}
@@ -179,22 +182,25 @@ func classifyErrorType(err error) (ErrorType, string) {
 // isTimeoutError checks if an error is timeout-related
 func isTimeoutError(err error) bool {
 	// Check for context timeout
-	if err == context.DeadlineExceeded {
+	if errors.Is(err, context.DeadlineExceeded) {
 		return true
 	}
 
 	// Check for net timeout
-	if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+	var netErr net.Error
+	if errors.As(err, &netErr) {
 		return true
 	}
 
 	// Check for syscall timeout
-	if opErr, ok := err.(*net.OpError); ok {
+	opErr := &net.OpError{}
+	if errors.As(err, &opErr) {
 		if opErr.Timeout() {
 			return true
 		}
-		if sysErr, ok := opErr.Err.(*syscall.Errno); ok {
-			if *sysErr == syscall.ETIMEDOUT {
+		var sysErr syscall.Errno
+		if errors.As(opErr.Err, &sysErr) {
+			if sysErr == syscall.ETIMEDOUT {
 				return true
 			}
 		}
@@ -210,17 +216,20 @@ func isTimeoutError(err error) bool {
 // isNetworkError checks if an error is network-related
 func isNetworkError(err error) bool {
 	// Check for network operations
-	if _, ok := err.(*net.OpError); ok {
+	opError := &net.OpError{}
+	if errors.As(err, &opError) {
 		return true
 	}
 
 	// Check for DNS errors
-	if _, ok := err.(*net.DNSError); ok {
+	dNSError := &net.DNSError{}
+	if errors.As(err, &dNSError) {
 		return true
 	}
 
 	// Check for address errors
-	if _, ok := err.(*net.AddrError); ok {
+	addrError := &net.AddrError{}
+	if errors.As(err, &addrError) {
 		return true
 	}
 
@@ -250,7 +259,8 @@ func isNetworkError(err error) bool {
 
 // IsNetworkError checks if an error is network-related
 func IsNetworkError(err error) bool {
-	if httpErr, ok := err.(*HTTPError); ok {
+	httpErr := &HTTPError{}
+	if errors.As(err, &httpErr) {
 		return httpErr.Type == ErrorTypeNetwork
 	}
 	return false
@@ -258,7 +268,8 @@ func IsNetworkError(err error) bool {
 
 // IsTimeoutError checks if an error is timeout-related
 func IsTimeoutError(err error) bool {
-	if httpErr, ok := err.(*HTTPError); ok {
+	httpErr := &HTTPError{}
+	if errors.As(err, &httpErr) {
 		return httpErr.Type == ErrorTypeTimeout
 	}
 	return false
@@ -266,7 +277,8 @@ func IsTimeoutError(err error) bool {
 
 // IsClientError checks if an error is a client error (4xx)
 func IsClientError(err error) bool {
-	if httpErr, ok := err.(*HTTPError); ok {
+	httpErr := &HTTPError{}
+	if errors.As(err, &httpErr) {
 		return httpErr.Type == ErrorTypeClient
 	}
 	return false
@@ -274,7 +286,8 @@ func IsClientError(err error) bool {
 
 // IsServerError checks if an error is a server error (5xx)
 func IsServerError(err error) bool {
-	if httpErr, ok := err.(*HTTPError); ok {
+	httpErr := &HTTPError{}
+	if errors.As(err, &httpErr) {
 		return httpErr.Type == ErrorTypeServer
 	}
 	return false
@@ -282,7 +295,8 @@ func IsServerError(err error) bool {
 
 // IsValidationError checks if an error is a validation error
 func IsValidationError(err error) bool {
-	if httpErr, ok := err.(*HTTPError); ok {
+	httpErr := &HTTPError{}
+	if errors.As(err, &httpErr) {
 		return httpErr.Type == ErrorTypeValidation
 	}
 	return false
@@ -290,7 +304,8 @@ func IsValidationError(err error) bool {
 
 // IsMiddlewareError checks if an error is middleware-related
 func IsMiddlewareError(err error) bool {
-	if httpErr, ok := err.(*HTTPError); ok {
+	httpErr := &HTTPError{}
+	if errors.As(err, &httpErr) {
 		return httpErr.Type == ErrorTypeMiddleware
 	}
 	return false
@@ -298,7 +313,8 @@ func IsMiddlewareError(err error) bool {
 
 // GetStatusCode extracts the HTTP status code from an error if available
 func GetStatusCode(err error) int {
-	if httpErr, ok := err.(*HTTPError); ok {
+	httpErr := &HTTPError{}
+	if errors.As(err, &httpErr) {
 		return httpErr.StatusCode
 	}
 	return 0
@@ -306,7 +322,8 @@ func GetStatusCode(err error) int {
 
 // GetRequestContext extracts the request context from an error if available
 func GetRequestContext(err error) context.Context {
-	if httpErr, ok := err.(*HTTPError); ok {
+	httpErr := &HTTPError{}
+	if errors.As(err, &httpErr) {
 		return httpErr.Context
 	}
 	return nil
