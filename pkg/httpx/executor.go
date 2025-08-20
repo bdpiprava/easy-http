@@ -38,10 +38,12 @@ func executeWithMiddleware(client *Client, request *Request, requestOpts Request
 	// Build the HTTP request
 	req, err := buildRequestFromConfig(requestOpts)
 	if err != nil {
+		// Classify the error for better context
+		httpErr := ClassifyError(err, req, nil)
 		if client.config.Logger != nil {
-			logError(client.config.Logger, "Failed to build HTTP request", err, req)
+			logError(client.config.Logger, "Failed to build HTTP request", httpErr, req)
 		}
-		return nil, err
+		return nil, httpErr
 	}
 
 	// Create the final handler that performs the actual HTTP call
@@ -59,7 +61,9 @@ func executeWithMiddleware(client *Client, request *Request, requestOpts Request
 	ctx := req.Context()
 	resp, err := chain.Execute(ctx, req)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to execute request")
+		// Classify and enhance the error with context
+		httpErr := ClassifyError(err, req, resp)
+		return nil, httpErr
 	}
 
 	return newResponse(resp, respType, requestOpts.Streaming)
@@ -70,8 +74,9 @@ func executeLegacy(client *Client, request *Request, requestOpts RequestOptions,
 	// Build HTTP request using old architecture
 	req, err := request.ToHTTPReq(client.clientOptions)
 	if err != nil {
-		logError(client.clientOptions.Logger, "Failed to build HTTP request", err, req)
-		return nil, err
+		httpErr := ClassifyError(err, req, nil)
+		logError(client.clientOptions.Logger, "Failed to build HTTP request", httpErr, req)
+		return nil, httpErr
 	}
 
 	// Log the outgoing request
@@ -82,8 +87,9 @@ func executeLegacy(client *Client, request *Request, requestOpts RequestOptions,
 	duration := time.Since(start)
 
 	if err != nil {
-		logError(client.clientOptions.Logger, "Failed to execute HTTP request", err, req)
-		return nil, errors.Wrap(err, "failed to execute request")
+		httpErr := ClassifyError(err, req, resp)
+		logError(client.clientOptions.Logger, "Failed to execute HTTP request", httpErr, req)
+		return nil, httpErr
 	}
 
 	// Log the response
