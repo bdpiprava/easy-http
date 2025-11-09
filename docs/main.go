@@ -2,16 +2,11 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"go/ast"
-	"go/parser"
 	"go/token"
 	"html/template"
-	"io"
 	"net/http"
 	"os"
-	"reflect"
-	"runtime"
 	"strings"
 	"time"
 )
@@ -37,10 +32,10 @@ type ConfigOption struct {
 }
 
 type TemplateData struct {
-	Examples      []*Example               `json:"examples"`
-	ConfigOptions map[string]ConfigOption  `json:"configOptions"`
-	Version       string                   `json:"version"`
-	GithubRepo    string                   `json:"githubRepo"`
+	Examples      []*Example              `json:"examples"`
+	ConfigOptions map[string]ConfigOption `json:"configOptions"`
+	Version       string                  `json:"version"`
+	GithubRepo    string                  `json:"githubRepo"`
 }
 
 var generate = flag.Bool("generate", false, "Generate the static files")
@@ -95,43 +90,6 @@ func buildStatic() {
 	if err != nil {
 		panic(err)
 	}
-}
-
-func readFuncBodyIgnoreError(fn reflect.Value) string {
-	body, _ := readFuncBody(fn)
-	return fmt.Sprintf("func example()%s}", body)
-}
-
-func readFuncBody(fn reflect.Value) (string, error) {
-	p := fn.Pointer()
-	fc := runtime.FuncForPC(p)
-	filename, line := fc.FileLine(p)
-	fset := token.NewFileSet()
-	// parse file to AST tree
-	node, err := parser.ParseFile(fset, filename, nil, parser.ParseComments)
-	if err != nil {
-		return "", err
-	}
-	// walk and find the function block
-	find := &FindBlockByLine{Fset: fset, Line: line}
-	ast.Walk(find, node)
-
-	if find.Block != nil {
-		fp, err := os.Open(filename)
-		if err != nil {
-			return "", err
-		}
-		defer fp.Close()
-		_, _ = fp.Seek(int64(find.Block.Lbrace-1), 0)
-		buf := make([]byte, int64(find.Block.Rbrace-find.Block.Lbrace))
-		_, err = io.ReadFull(fp, buf)
-		if err != nil {
-			return "", err
-		}
-
-		return string(buf), nil
-	}
-	return "", nil
 }
 
 // FindBlockByLine is a ast.Visitor implementation that finds a block by line.
@@ -414,6 +372,7 @@ func getOptions(names ...string) []ConfigOption {
 }
 
 func getExamples() []*Example {
+	//nolint:lll
 	return []*Example{
 		// Getting Started
 		{
@@ -649,7 +608,7 @@ func getExamples() []*Example {
 		{
 			Name:            "OpenTelemetry Tracing",
 			Description:     `Enable distributed tracing with OpenTelemetry for observability`,
-			FullDescription: `Shows how to enable OpenTelemetry distributed tracing for complete observability across your service architecture. Traces automatically capture HTTP request details, timing information, and propagate trace context across service boundaries. This is critical for debugging issues in microservices architectures, understanding request flows, measuring latency, and identifying bottlenecks. Use this in production systems where you need end-to-end visibility of requests across multiple services. Essential for microservices observability, performance optimization, and debugging distributed systems. Integrates seamlessly with tools like Jaeger, Zipkin, and cloud tracing platforms.`,
+			FullDescription: `Shows how to enable OpenTelemetry distributed tracing for complete observability across your service architecture. Traces automatically capture HTTP request details, timing information, and propagate trace context across service boundaries. This is critical for debugging issues in microservices architectures, understanding request flows, measuring latency, and identifying bottlenecks. Use this in production systems where you need end-to-end visibility of requests across multiple services. Essential for microservices observability, performance optimization, and debugging distributed systems. Integrates seamlessly with tools like Jaeger, Zipkin, and cloud tracing platforms.`, //nolint:lll // documentation string needs full context
 			Code:            exampleTracing(),
 			Category:        "Advanced",
 			CategoryIcon:    "fa-cogs",

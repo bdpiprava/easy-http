@@ -599,6 +599,7 @@ func (s *RequestTestSuite) TestStructuredLogging() {
 	mockServer.SetupMock("GET", "/test", 200, testResponseBody)
 
 	// Create client with logger
+
 	client := httpx.NewClient(
 		httpx.WithLogger(logger),
 		httpx.WithLogLevel(slog.LevelDebug),
@@ -639,6 +640,7 @@ func (s *RequestTestSuite) TestLoggingLevels() {
 	mockServer.SetupMock("GET", "/test", 200, testResponseBody)
 
 	// Create client with logger set to INFO level
+
 	client := httpx.NewClient(
 		httpx.WithLogger(logger),
 		httpx.WithLogLevel(slog.LevelInfo),
@@ -671,6 +673,7 @@ func (s *RequestTestSuite) TestLoggingWithErrors() {
 	}))
 
 	// Create client with logger
+
 	client := httpx.NewClient(
 		httpx.WithLogger(logger),
 		httpx.WithLogLevel(slog.LevelDebug),

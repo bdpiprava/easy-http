@@ -146,6 +146,7 @@ func contextAwareRequestsExample() {
 	server := createSlowServer()
 	defer server.Close()
 
+	//nolint:staticcheck
 	client := httpx.NewClient(
 		httpx.WithDefaultBaseURL(server.URL),
 		httpx.WithDefaultTimeout(10*time.Second),
@@ -203,6 +204,7 @@ func streamingResponseExample() {
 	server := createStreamingServer()
 	defer server.Close()
 
+	//nolint:staticcheck
 	client := httpx.NewClient(httpx.WithDefaultBaseURL(server.URL))
 
 	fmt.Println("  Making streaming request:")
@@ -245,6 +247,7 @@ func errorHandlingExample() {
 	defer networkErrorServer.Close()
 	defer httpErrorServer.Close()
 
+	//nolint:staticcheck
 	client := httpx.NewClient()
 
 	fmt.Println("  Testing different error types:")

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"compress/gzip"
 	"fmt"
 	"log"
 	"net/http"
@@ -39,7 +38,7 @@ func example1() {
 	fmt.Println("--------------------------------------")
 
 	// Create a test server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"status":"success","data":"Hello"}`))
@@ -74,7 +73,7 @@ func example2() {
 	// Create custom Prometheus registry to avoid conflicts
 	registry := prometheus.NewRegistry()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"result":"ok"}`))
 	}))
@@ -116,7 +115,7 @@ func example3() {
 	fmt.Println("\nExample 3: Multiple Clients with Separate Registries")
 	fmt.Println("-----------------------------------------------------")
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"data":"response"}`))
 	}))
@@ -170,7 +169,7 @@ func example4() {
 
 	registry := prometheus.NewRegistry()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"ok":true}`))
 	}))
@@ -297,55 +296,4 @@ func example5() {
 	fmt.Println("In production, you would expose this at /metrics:")
 	fmt.Println("  http.Handle(\"/metrics\", promhttp.Handler())")
 	fmt.Println("  http.ListenAndServe(\":8080\", nil)")
-}
-
-func example6() {
-	fmt.Println("\nExample 6: Combining Metrics with Other Middleware")
-	fmt.Println("---------------------------------------------------")
-
-	registry := prometheus.NewRegistry()
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"message":"compressed and metered"}`))
-	}))
-	defer server.Close()
-
-	// Combine Prometheus metrics with compression middleware
-	client := httpx.NewClientWithConfig(
-		httpx.WithClientDefaultBaseURL(server.URL),
-		httpx.WithClientPrometheusMetrics(httpx.PrometheusConfig{
-			Namespace:          "myapp",
-			Subsystem:          "api",
-			Registry:           registry,
-			IncludeHostLabel:   true,
-			IncludeMethodLabel: true,
-		}),
-		httpx.WithClientCompression(httpx.CompressionConfig{
-			Level:              gzip.BestSpeed,
-			MinSizeBytes:       512,
-			EnableRequest:      true,
-			EnableResponse:     true,
-			PreferredEncodings: []string{"gzip"},
-		}),
-	)
-
-	// Make request - will be both compressed and metered
-	req := httpx.NewRequest(http.MethodPost,
-		httpx.WithPath("/api/data"),
-		httpx.WithJSONBody(map[string]string{
-			"data": "Large payload that will be compressed",
-		}))
-
-	_, err := client.Execute(*req, map[string]any{})
-	if err != nil {
-		log.Printf("Request failed: %v", err)
-	}
-
-	fmt.Println("✓ Client combines multiple middleware:")
-	fmt.Println("  - Prometheus metrics track all requests")
-	fmt.Println("  - Compression reduces bandwidth")
-	fmt.Println("  - Metrics accurately reflect compressed sizes")
-	fmt.Println("  Request/response sizes in metrics show post-compression values")
 }

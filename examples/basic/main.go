@@ -123,6 +123,7 @@ func postWithJSONBody(baseURL string) {
 // usingConfiguredClient shows how to create and use a configured client
 func usingConfiguredClient(baseURL string) {
 	// Create a client with default configuration
+	//nolint:staticcheck
 	client := httpx.NewClient(
 		httpx.WithDefaultBaseURL(baseURL),
 		httpx.WithDefaultTimeout(5*time.Second),

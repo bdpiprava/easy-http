@@ -178,7 +178,7 @@ func example4() {
 
 	// Create server that sends gzip-compressed responses
 	originalData := []byte(`{"message":"This is a compressed response","data":"` + strings.Repeat("test", 500) + `"}`)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		// Compress the response
 		var buf bytes.Buffer
 		gw := gzip.NewWriter(&buf)

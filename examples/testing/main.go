@@ -252,6 +252,8 @@ func flakyBehaviorExample() {
 }
 
 // Helper function to test request matchers
+//
+//nolint:unparam
 func testMatcher(mock *httpxtesting.MockServer, method, path string, headers map[string]string, description string) {
 	req, _ := http.NewRequest(method, mock.URL()+path, nil)
 	for k, v := range headers {
