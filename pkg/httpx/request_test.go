@@ -38,23 +38,23 @@ func TestRequestTestSuite(t *testing.T) {
 }
 
 func (s *RequestTestSuite) Test_GET() {
-	s.run(getTestCases("GET"), httpx.GET[map[string]any])
+	s.run(getTestCases("GET"), httpx.GET[any])
 }
 
 func (s *RequestTestSuite) Test_POST() {
-	s.run(getTestCases("POST"), httpx.POST[map[string]any])
+	s.run(getTestCases("POST"), httpx.POST[any])
 }
 
 func (s *RequestTestSuite) Test_DELETE() {
-	s.run(getTestCases("DELETE"), httpx.DELETE[map[string]any])
+	s.run(getTestCases("DELETE"), httpx.DELETE[any])
 }
 
 func (s *RequestTestSuite) Test_PUT() {
-	s.run(getTestCases("PUT"), httpx.PUT[map[string]any])
+	s.run(getTestCases("PUT"), httpx.PUT[any])
 }
 
 func (s *RequestTestSuite) Test_PATCH() {
-	s.run(getTestCases("PATCH"), httpx.PATCH[map[string]any])
+	s.run(getTestCases("PATCH"), httpx.PATCH[any])
 }
 
 func (s *RequestTestSuite) Test_HEAD() {
@@ -89,7 +89,7 @@ func (s *RequestTestSuite) Test_HEAD() {
 			// HEAD responses don't have bodies, only headers and status
 			mockServer.SetupMock("HEAD", "/api/v1/"+randomID, tc.serverStatus, "")
 
-			resp, err := httpx.HEAD[string](
+			resp, err := httpx.HEAD[any](
 				httpx.WithBaseURL(mockServer.GetURL()),
 				httpx.WithPath("/api/v1", randomID),
 				httpx.WithQueryParam("region", "us"),
@@ -152,6 +152,36 @@ func getTestCases(method string) []testCase {
 			serverAPI:      serverAPI{method: method, status: 500, body: `{"error": "internal server error"}`},
 			wantResponse:   map[string]any{"error": "internal server error"},
 			wantStatusCode: 500,
+		},
+		{
+			name:           fmt.Sprintf("%s request with JSON array of objects", method),
+			serverAPI:      serverAPI{method: method, status: 200, body: `[{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}]`},
+			wantResponse:   []any{map[string]any{"id": float64(1), "name": "Alice"}, map[string]any{"id": float64(2), "name": "Bob"}},
+			wantStatusCode: 200,
+		},
+		{
+			name:           fmt.Sprintf("%s request with JSON array of primitives", method),
+			serverAPI:      serverAPI{method: method, status: 200, body: `[1, 2, 3, 4, 5]`},
+			wantResponse:   []any{float64(1), float64(2), float64(3), float64(4), float64(5)},
+			wantStatusCode: 200,
+		},
+		{
+			name:           fmt.Sprintf("%s request with JSON string primitive", method),
+			serverAPI:      serverAPI{method: method, status: 200, body: `"hello world"`},
+			wantResponse:   "hello world",
+			wantStatusCode: 200,
+		},
+		{
+			name:           fmt.Sprintf("%s request with JSON number primitive", method),
+			serverAPI:      serverAPI{method: method, status: 200, body: `42.5`},
+			wantResponse:   float64(42.5),
+			wantStatusCode: 200,
+		},
+		{
+			name:           fmt.Sprintf("%s request with JSON boolean primitive", method),
+			serverAPI:      serverAPI{method: method, status: 200, body: `true`},
+			wantResponse:   true,
+			wantStatusCode: 200,
 		},
 		{
 			name:           fmt.Sprintf("%s request with invalid json payload", method),

@@ -12,9 +12,8 @@ import (
 
 // execute is a function that executes the request with given client and returns the response
 func execute(client *Client, request *Request, respType any) (*Response, error) {
-	if respType == nil {
-		return nil, errors.New("response type cannot be nil")
-	}
+	// Note: respType can be nil for requests that don't expect response bodies (e.g., HEAD)
+	// The validation is handled downstream in newResponse() where we have body content
 
 	// Build request options to check for streaming mode
 	// Use new config architecture if available, fall back to old for compatibility

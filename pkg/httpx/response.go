@@ -2,7 +2,6 @@ package httpx
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"reflect"
@@ -25,10 +24,6 @@ type Response struct {
 
 // newResponse is a function that creates a new response
 func newResponse(httpResp *http.Response, bType any, streaming bool) (*Response, error) {
-	if bType == nil {
-		return nil, fmt.Errorf("unsupported type: %T", bType)
-	}
-
 	response := &Response{
 		header:       httpResp.Header,
 		Status:       httpResp.Status,
@@ -59,13 +54,29 @@ func newResponse(httpResp *http.Response, bType any, streaming bool) (*Response,
 		return response, nil
 	}
 
-	// Handle empty response bodies (e.g., 204 No Content)
+	// Handle empty response bodies (e.g., 204 No Content, HEAD requests)
 	if len(bodyBytes) == 0 {
+		// For empty bodies, bType can be nil (e.g., HEAD[any]) - just set it as-is
 		response.Body = bType
 		return response, nil
 	}
 
+	// Check the reflected type to handle different cases
 	bTypeReflected := reflect.TypeOf(bType)
+
+	// Handle nil interface (e.g., from GET[any], POST[any], etc.)
+	// Auto-detect JSON structure: objects → map[string]any, arrays → []any
+	if bTypeReflected == nil {
+		var target any
+		err = json.Unmarshal(bodyBytes, &target)
+		if err != nil {
+			return response, errors.Wrap(err, "failed to unmarshal response as type map[string]interface {}")
+		}
+		response.Body = target
+		return response, nil
+	}
+
+	// Handle string type specially - return raw body as string
 	if bTypeReflected.Kind() == reflect.String {
 		response.Body = string(bodyBytes)
 		return response, nil
