@@ -57,6 +57,12 @@ func newResponse(httpResp *http.Response, bType any, streaming bool) (*Response,
 		return response, nil
 	}
 
+	// Handle empty response bodies (e.g., 204 No Content)
+	if len(bodyBytes) == 0 {
+		response.Body = bType
+		return response, nil
+	}
+
 	bTypeReflected := reflect.TypeOf(bType)
 	if bTypeReflected.Kind() == reflect.String {
 		response.Body = string(bodyBytes)

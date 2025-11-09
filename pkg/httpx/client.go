@@ -398,3 +398,17 @@ func WithClientPrometheusMetrics(config PrometheusConfig) ClientConfigOption {
 func WithClientDefaultPrometheusMetrics() ClientConfigOption {
 	return WithClientPrometheusMetrics(DefaultPrometheusConfig())
 }
+
+// WithClientTracing enables OpenTelemetry distributed tracing
+func WithClientTracing(config TracingConfig) ClientConfigOption {
+	return func(c *ClientConfig) {
+		tracingMiddleware := NewTracingMiddleware(config)
+		// Tracing should be first middleware to capture all operations
+		c.Middlewares = append([]Middleware{tracingMiddleware}, c.Middlewares...)
+	}
+}
+
+// WithClientDefaultTracing enables OpenTelemetry tracing with default settings
+func WithClientDefaultTracing() ClientConfigOption {
+	return WithClientTracing(TracingConfig{})
+}
