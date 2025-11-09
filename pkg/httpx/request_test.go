@@ -247,6 +247,69 @@ func (s *RequestTestSuite) Test_RequestOpts() {
 				s.NotNil(req)
 			},
 		},
+		{
+			name: "WithFormData",
+			opts: []httpx.RequestOption{httpx.WithFormData(map[string][]string{
+				"username": {"alice"},
+				"password": {"secret123"},
+			})},
+			assertFn: func(req *http.Request) {
+				content, err := io.ReadAll(req.Body)
+				s.Require().NoError(err)
+				s.Equal("application/x-www-form-urlencoded", req.Header.Get("Content-Type"))
+				// URL encoding can have different orders, so check both possibilities
+				bodyStr := string(content)
+				s.Contains(bodyStr, "username=alice")
+				s.Contains(bodyStr, "password=secret123")
+			},
+		},
+		{
+			name: "WithFormData with special characters",
+			opts: []httpx.RequestOption{httpx.WithFormData(map[string][]string{
+				"email": {"user@example.com"},
+				"name":  {"John Doe"},
+			})},
+			assertFn: func(req *http.Request) {
+				content, err := io.ReadAll(req.Body)
+				s.Require().NoError(err)
+				s.Equal("application/x-www-form-urlencoded", req.Header.Get("Content-Type"))
+				bodyStr := string(content)
+				// @ should be encoded as %40, space as +
+				s.Contains(bodyStr, "email=user%40example.com")
+				s.Contains(bodyStr, "name=John+Doe")
+			},
+		},
+		{
+			name: "WithFormData with nil values",
+			opts: []httpx.RequestOption{httpx.WithFormData(nil)},
+			assertFn: func(req *http.Request) {
+				// Should not set body or content-type when nil
+				s.Nil(req.Body)
+			},
+		},
+		{
+			name: "WithFormFields",
+			opts: []httpx.RequestOption{httpx.WithFormFields(map[string]string{
+				"grant_type": "client_credentials",
+				"client_id":  "my-client-id",
+			})},
+			assertFn: func(req *http.Request) {
+				content, err := io.ReadAll(req.Body)
+				s.Require().NoError(err)
+				s.Equal("application/x-www-form-urlencoded", req.Header.Get("Content-Type"))
+				bodyStr := string(content)
+				s.Contains(bodyStr, "grant_type=client_credentials")
+				s.Contains(bodyStr, "client_id=my-client-id")
+			},
+		},
+		{
+			name: "WithFormFields with nil values",
+			opts: []httpx.RequestOption{httpx.WithFormFields(nil)},
+			assertFn: func(req *http.Request) {
+				// Should not set body or content-type when nil
+				s.Nil(req.Body)
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -598,4 +661,52 @@ func (s *RequestTestSuite) TestLoggingWithErrors() {
 	logs := logBuffer.String()
 	s.Contains(logs, "Failed to execute HTTP request")
 	s.Contains(logs, "level=ERROR")
+}
+
+func (s *RequestTestSuite) TestFormDataIntegration() {
+	// Setup mock server
+	mockServer := NewMockServer()
+	defer mockServer.Close()
+
+	mockServer.SetupMock("POST", "/login", 200, `{"token":"abc123"}`)
+
+	// Test WithFormFields
+	resp, err := httpx.POST[map[string]any](
+		httpx.WithBaseURL(mockServer.GetURL()),
+		httpx.WithPath("/login"),
+		httpx.WithFormFields(map[string]string{
+			"username": "alice",
+			"password": "secret123",
+		}),
+	)
+
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+	s.Equal(200, resp.StatusCode)
+	s.Equal("abc123", resp.Body.(map[string]any)["token"])
+}
+
+func (s *RequestTestSuite) TestFormDataWithMultipleValues() {
+	// Setup mock server
+	mockServer := NewMockServer()
+	defer mockServer.Close()
+
+	mockServer.SetupMock("POST", "/oauth/token", 200, `{"access_token":"xyz789"}`)
+
+	// Test WithFormData with url.Values for multiple values per key
+	formData := map[string][]string{
+		"grant_type": {"client_credentials"},
+		"scope":      {"read", "write"},
+	}
+
+	resp, err := httpx.POST[map[string]any](
+		httpx.WithBaseURL(mockServer.GetURL()),
+		httpx.WithPath("/oauth/token"),
+		httpx.WithFormData(formData),
+	)
+
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+	s.Equal(200, resp.StatusCode)
+	s.Equal("xyz789", resp.Body.(map[string]any)["access_token"])
 }

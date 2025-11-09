@@ -162,6 +162,37 @@ func WithJSONBody(body any) RequestOption {
 	}
 }
 
+// WithFormData is a function that sets form-encoded data as the request body
+// Automatically sets Content-Type to application/x-www-form-urlencoded
+func WithFormData(data url.Values) RequestOption {
+	return func(c *RequestOptions) {
+		if data == nil {
+			return
+		}
+
+		encoded := data.Encode()
+		c.Headers.Set("Content-Type", "application/x-www-form-urlencoded")
+		c.Body = strings.NewReader(encoded)
+	}
+}
+
+// WithFormFields is a convenience function for WithFormData that accepts a map
+func WithFormFields(fields map[string]string) RequestOption {
+	return func(c *RequestOptions) {
+		if fields == nil {
+			return
+		}
+
+		data := url.Values{}
+		for key, value := range fields {
+			data.Set(key, value)
+		}
+
+		// Delegate to WithFormData
+		WithFormData(data)(c)
+	}
+}
+
 // WithBasicAuth is a function that sets basic authentication for the request
 func WithBasicAuth(username, password string) RequestOption {
 	return func(c *RequestOptions) {
