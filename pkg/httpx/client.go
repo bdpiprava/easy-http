@@ -380,3 +380,21 @@ func WithClientCompression(config CompressionConfig) ClientConfigOption {
 func WithClientDefaultCompression() ClientConfigOption {
 	return WithClientCompression(DefaultCompressionConfig())
 }
+
+// WithClientPrometheusMetrics enables Prometheus metrics collection
+func WithClientPrometheusMetrics(config PrometheusConfig) ClientConfigOption {
+	return func(c *ClientConfig) {
+		collector, err := NewPrometheusCollector(config)
+		if err != nil {
+			// Log error but don't fail client creation
+			return
+		}
+		metricsMiddleware := NewMetricsMiddleware(collector)
+		c.Middlewares = append(c.Middlewares, metricsMiddleware)
+	}
+}
+
+// WithClientDefaultPrometheusMetrics enables Prometheus metrics with default settings
+func WithClientDefaultPrometheusMetrics() ClientConfigOption {
+	return WithClientPrometheusMetrics(DefaultPrometheusConfig())
+}

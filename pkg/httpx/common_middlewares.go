@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -238,6 +239,13 @@ func (m *MetricsMiddleware) Execute(ctx context.Context, req *http.Request, next
 
 	m.collector.IncrementRequests(method, url)
 
+	// Track request size if available (for PrometheusCollector)
+	if req.ContentLength > 0 {
+		if pc, ok := m.collector.(*PrometheusCollector); ok {
+			pc.RecordRequestSize(method, url, req.ContentLength)
+		}
+	}
+
 	start := time.Now()
 	resp, err := next(ctx, req)
 	duration := time.Since(start)
@@ -251,6 +259,15 @@ func (m *MetricsMiddleware) Execute(ctx context.Context, req *http.Request, next
 
 	if resp.StatusCode >= 400 {
 		m.collector.IncrementErrors(method, url, resp.StatusCode)
+	}
+
+	// Track response size if available (for PrometheusCollector)
+	if pc, ok := m.collector.(*PrometheusCollector); ok {
+		if contentLength := resp.Header.Get("Content-Length"); contentLength != "" {
+			if size, parseErr := strconv.ParseInt(contentLength, 10, 64); parseErr == nil {
+				pc.RecordResponseSize(method, url, resp.StatusCode, size)
+			}
+		}
 	}
 
 	return resp, nil
