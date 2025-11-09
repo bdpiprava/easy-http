@@ -1,512 +1,278 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
-	"net/http/httptest"
-	"strings"
 	"time"
 
-	"github.com/bdpiprava/easy-http/pkg/httpx"
+	httpxtesting "github.com/bdpiprava/easy-http/pkg/httpx/testing"
 )
 
-const (
-	methodGet  = "GET"
-	methodPost = "POST"
-)
-
-// User represents a user in our system
-type User struct {
-	ID    int    `json:"id"`
-	Name  string `json:"name"`
-	Email string `json:"email"`
-}
-
-// UserService demonstrates a service that uses httpx for API calls
-type UserService struct {
-	client  *httpx.Client
-	baseURL string
-}
-
-// NewUserService creates a new user service
-func NewUserService(baseURL string) *UserService {
-	client := httpx.NewClient(
-		httpx.WithDefaultBaseURL(baseURL),
-		httpx.WithDefaultTimeout(30*time.Second),
-		httpx.WithDefaultHeader("Content-Type", "application/json"),
-	)
-
-	return &UserService{
-		client:  client,
-		baseURL: baseURL,
-	}
-}
-
-// GetUser fetches a user by ID
-func (s *UserService) GetUser(id int) (*User, error) {
-	req := httpx.NewRequest(http.MethodGet,
-		httpx.WithPath(fmt.Sprintf("/users/%d", id)),
-	)
-
-	response, err := s.client.Execute(*req, User{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user %d: %w", id, err)
-	}
-
-	if user, ok := response.Body.(User); ok {
-		return &user, nil
-	}
-
-	return nil, fmt.Errorf("unexpected response format")
-}
-
-// CreateUser creates a new user
-func (s *UserService) CreateUser(user User) (*User, error) {
-	req := httpx.NewRequest(http.MethodPost,
-		httpx.WithPath("/users"),
-		httpx.WithJSONBody(user),
-	)
-
-	response, err := s.client.Execute(*req, User{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create user: %w", err)
-	}
-
-	if createdUser, ok := response.Body.(User); ok {
-		return &createdUser, nil
-	}
-
-	return nil, fmt.Errorf("unexpected response format")
-}
-
-// UpdateUser updates an existing user
-func (s *UserService) UpdateUser(id int, user User) (*User, error) {
-	req := httpx.NewRequest(http.MethodPut,
-		httpx.WithPath(fmt.Sprintf("/users/%d", id)),
-		httpx.WithJSONBody(user),
-	)
-
-	response, err := s.client.Execute(*req, User{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to update user %d: %w", id, err)
-	}
-
-	if updatedUser, ok := response.Body.(User); ok {
-		return &updatedUser, nil
-	}
-
-	return nil, fmt.Errorf("unexpected response format")
-}
-
-// DeleteUser deletes a user by ID
-func (s *UserService) DeleteUser(id int) error {
-	req := httpx.NewRequest(http.MethodDelete,
-		httpx.WithPath(fmt.Sprintf("/users/%d", id)),
-	)
-
-	_, err := s.client.Execute(*req, map[string]any{})
-	if err != nil {
-		return fmt.Errorf("failed to delete user %d: %w", id, err)
-	}
-
-	return nil
-}
-
+// Example demonstrates how to use the httpx testing utilities
+// to test HTTP clients and services
 func main() {
-	fmt.Println("=== Testing and Mocking Example ===")
+	fmt.Println("=== Easy-HTTP Testing Utilities Examples ===\n")
 
-	// Example 1: Basic service testing with mock server
-	fmt.Println("\n--- Example 1: Basic Service Testing ---")
-	basicServiceTesting()
-
-	// Example 2: Testing error scenarios
-	fmt.Println("\n--- Example 2: Error Scenario Testing ---")
-	errorScenarioTesting()
-
-	// Example 3: Testing different HTTP methods
-	fmt.Println("\n--- Example 3: HTTP Methods Testing ---")
-	httpMethodsTesting()
-
-	// Example 4: Testing with different response codes
-	fmt.Println("\n--- Example 4: Response Codes Testing ---")
-	responseCodesTesting()
-
-	// Example 5: Integration testing patterns
-	fmt.Println("\n--- Example 5: Integration Testing Patterns ---")
-	integrationTestingPatterns()
-
-	fmt.Println("\n=== Testing Examples Complete ===")
+	basicMockServerExample()
+	requestMatchersExample()
+	assertionsExample()
+	errorSimulationExample()
+	flakyBehaviorExample()
+	fmt.Println("\n=== All Examples Completed ===")
 }
 
-// basicServiceTesting demonstrates basic service testing with httptest
-func basicServiceTesting() {
-	// Create a mock server that simulates a user API
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.Method == methodGet && r.URL.Path == "/users/1":
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"id": 1, "name": "John Doe", "email": "john@example.com"}`))
+// basicMockServerExample demonstrates basic mock server setup and usage
+func basicMockServerExample() {
+	fmt.Println("1. Basic Mock Server Example")
+	fmt.Println("   Creating a mock server with simple responses...")
 
-		case r.Method == methodPost && r.URL.Path == "/users":
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusCreated)
-			_, _ = w.Write([]byte(`{"id": 2, "name": "Jane Smith", "email": "jane@example.com"}`))
+	// Create a new mock server
+	mock := httpxtesting.NewMockServer()
+	defer mock.Close()
 
-		default:
-			w.WriteHeader(http.StatusNotFound)
-			_, _ = w.Write([]byte(`{"error": "not found"}`))
-		}
-	}))
-	defer mockServer.Close()
+	// Configure responses using fluent API
+	mock.OnGet("/users").
+		WithStatus(http.StatusOK).
+		WithJSON(map[string]interface{}{
+			"users": []map[string]interface{}{
+				{"id": 1, "name": "Alice"},
+				{"id": 2, "name": "Bob"},
+			},
+		})
 
-	// Create service with mock server URL
-	userService := NewUserService(mockServer.URL)
+	mock.OnPost("/users").
+		WithStatus(http.StatusCreated).
+		WithJSON(map[string]interface{}{
+			"id":      3,
+			"name":    "Charlie",
+			"created": true,
+		})
 
-	// Test GetUser
-	user, err := userService.GetUser(1)
-	if err != nil {
-		fmt.Printf("  GetUser failed: %v\n", err)
-	} else {
-		fmt.Printf("  GetUser success: %+v\n", *user)
-	}
+	// Make requests to the mock server
+	resp1, _ := http.Get(mock.URL() + "/users")
+	defer resp1.Body.Close()
+	body1, _ := io.ReadAll(resp1.Body)
 
-	// Test CreateUser
-	newUser := User{Name: "Jane Smith", Email: "jane@example.com"}
-	createdUser, err := userService.CreateUser(newUser)
-	if err != nil {
-		fmt.Printf("  CreateUser failed: %v\n", err)
-	} else {
-		fmt.Printf("  CreateUser success: %+v\n", *createdUser)
-	}
+	resp2, _ := http.Post(mock.URL()+"/users", "application/json", nil)
+	defer resp2.Body.Close()
+	body2, _ := io.ReadAll(resp2.Body)
+
+	fmt.Printf("   GET /users: %d - %s\n", resp1.StatusCode, string(body1))
+	fmt.Printf("   POST /users: %d - %s\n\n", resp2.StatusCode, string(body2))
 }
 
-// errorScenarioTesting demonstrates testing various error scenarios
-func errorScenarioTesting() {
-	// Create a mock server that simulates different error conditions
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/users/404":
-			w.WriteHeader(http.StatusNotFound)
-			_, _ = w.Write([]byte(`{"error": "user not found"}`))
+// requestMatchersExample demonstrates advanced request matching
+func requestMatchersExample() {
+	fmt.Println("2. Request Matchers Example")
+	fmt.Println("   Using matchers for flexible request routing...")
 
-		case "/users/500":
-			w.WriteHeader(http.StatusInternalServerError)
-			_, _ = w.Write([]byte(`{"error": "internal server error"}`))
+	mock := httpxtesting.NewMockServer()
+	defer mock.Close()
 
-		case "/users/timeout":
-			// Simulate timeout by not responding
-			select {}
+	// Exact path matching
+	mock.On(httpxtesting.ExactPath("/api/users")).
+		WithStatus(http.StatusOK).
+		WithBodyString("exact match")
 
-		case "/users/bad-json":
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{invalid json`))
+	// Path prefix matching
+	mock.On(httpxtesting.PathPrefix("/api/")).
+		WithStatus(http.StatusOK).
+		WithBodyString("prefix match")
 
-		default:
-			w.WriteHeader(http.StatusBadRequest)
-			_, _ = w.Write([]byte(`{"error": "bad request"}`))
-		}
-	}))
-	defer mockServer.Close()
+	// Regex path matching
+	mock.On(httpxtesting.PathRegex(`/users/\d+`)).
+		WithStatus(http.StatusOK).
+		WithBodyString("regex match")
 
-	userService := NewUserService(mockServer.URL)
+	// Query parameter matching
+	mock.On(httpxtesting.HasQueryParam("filter", "active")).
+		WithStatus(http.StatusOK).
+		WithBodyString("query param match")
 
-	// Test 404 error
-	fmt.Println("  Testing 404 error:")
-	_, err := userService.GetUser(404)
-	if err != nil {
-		fmt.Printf("    Expected error: %v\n", err)
-	}
+	// Header matching
+	mock.On(httpxtesting.HasHeader("Authorization", "Bearer token")).
+		WithStatus(http.StatusOK).
+		WithBodyString("header match")
 
-	// Test 500 error
-	fmt.Println("  Testing 500 error:")
-	_, err = userService.GetUser(500)
-	if err != nil {
-		fmt.Printf("    Expected error: %v\n", err)
-	}
+	// Composite matchers (AND)
+	mock.On(
+		httpxtesting.And(
+			httpxtesting.MethodIs("POST"),
+			httpxtesting.ExactPath("/api/submit"),
+			httpxtesting.HasHeader("Content-Type", "application/json"),
+		),
+	).WithStatus(http.StatusOK).WithBodyString("composite match")
 
-	// Test network error (non-existent server)
-	fmt.Println("  Testing network error:")
-	networkErrorService := NewUserService("http://localhost:1") // Non-existent server
-	_, err = networkErrorService.GetUser(1)
-	if err != nil {
-		fmt.Printf("    Expected network error: %v\n", err)
-	}
+	// Test the matchers
+	testMatcher(mock, "GET", "/api/users", nil, "Exact path")
+	testMatcher(mock, "GET", "/api/posts", nil, "Path prefix")
+	testMatcher(mock, "GET", "/users/123", nil, "Regex path")
+	testMatcher(mock, "GET", "/search?filter=active", nil, "Query param")
+
+	// Test with headers
+	req, _ := http.NewRequest("GET", mock.URL()+"/protected", nil)
+	req.Header.Set("Authorization", "Bearer token")
+	resp, _ := http.DefaultClient.Do(req)
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	fmt.Printf("   Header match: %s\n\n", string(body))
 }
 
-// httpMethodsTesting demonstrates testing different HTTP methods
-func httpMethodsTesting() {
-	var lastMethod string
-	var lastPath string
-	var lastBody string
+// assertionsExample demonstrates request verification and assertions
+func assertionsExample() {
+	fmt.Println("3. Assertions Example")
+	fmt.Println("   Verifying requests and their properties...")
 
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		lastMethod = r.Method
-		lastPath = r.URL.Path
+	mock := httpxtesting.NewMockServer()
+	defer mock.Close()
 
-		// Read body for POST/PUT requests
-		if r.Method == methodPost || r.Method == "PUT" {
-			body := make([]byte, r.ContentLength)
-			_, _ = r.Body.Read(body)
-			lastBody = string(body)
-		}
+	mock.OnGet("/api/data").WithStatus(http.StatusOK)
+	mock.OnPost("/api/data").WithStatus(http.StatusCreated)
 
-		switch r.Method {
-		case methodGet:
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"id": 1, "name": "Test User", "email": "test@example.com"}`))
+	// Make some requests
+	req1, _ := http.NewRequest("GET", mock.URL()+"/api/data?id=123", nil)
+	req1.Header.Set("X-Custom", "test-value")
+	resp1, _ := http.DefaultClient.Do(req1)
+	resp1.Body.Close()
 
-		case methodPost:
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusCreated)
-			_, _ = w.Write([]byte(`{"id": 2, "name": "Created User", "email": "created@example.com"}`))
+	resp2, _ := http.Post(mock.URL()+"/api/data", "application/json", nil)
+	resp2.Body.Close()
 
-		case "PUT":
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"id": 1, "name": "Updated User", "email": "updated@example.com"}`))
+	// Use assertions to verify requests
+	assert := mock.Assert()
 
-		case "DELETE":
-			w.WriteHeader(http.StatusNoContent)
-
-		default:
-			w.WriteHeader(http.StatusMethodNotAllowed)
-		}
-	}))
-	defer mockServer.Close()
-
-	userService := NewUserService(mockServer.URL)
-
-	// Test GET
-	fmt.Println("  Testing GET:")
-	user, err := userService.GetUser(1)
-	if err != nil {
-		fmt.Printf("    Error: %v\n", err)
+	if err := assert.RequestCount(2); err != nil {
+		fmt.Printf("   ❌ Request count: %v\n", err)
 	} else {
-		fmt.Printf("    Method: %s, Path: %s, User: %+v\n", lastMethod, lastPath, *user)
+		fmt.Println("   ✅ Request count: 2 requests received")
 	}
 
-	// Test POST
-	fmt.Println("  Testing POST:")
-	newUser := User{Name: "New User", Email: "new@example.com"}
-	createdUser, err := userService.CreateUser(newUser)
-	if err != nil {
-		fmt.Printf("    Error: %v\n", err)
+	if err := assert.RequestTo("/api/data"); err != nil {
+		fmt.Printf("   ❌ Request to /api/data: %v\n", err)
 	} else {
-		fmt.Printf("    Method: %s, Path: %s, Body: %s\n", lastMethod, lastPath, lastBody)
-		fmt.Printf("    Created: %+v\n", *createdUser)
+		fmt.Println("   ✅ Request to /api/data received")
 	}
 
-	// Test PUT
-	fmt.Println("  Testing PUT:")
-	updateUser := User{Name: "Updated User", Email: "updated@example.com"}
-	updated, err := userService.UpdateUser(1, updateUser)
-	if err != nil {
-		fmt.Printf("    Error: %v\n", err)
+	if err := assert.RequestWithMethod("POST"); err != nil {
+		fmt.Printf("   ❌ POST request: %v\n", err)
 	} else {
-		fmt.Printf("    Method: %s, Path: %s, Body: %s\n", lastMethod, lastPath, lastBody)
-		fmt.Printf("    Updated: %+v\n", *updated)
+		fmt.Println("   ✅ POST request received")
 	}
 
-	// Test DELETE
-	fmt.Println("  Testing DELETE:")
-	err = userService.DeleteUser(1)
-	if err != nil {
-		fmt.Printf("    Error: %v\n", err)
+	if err := assert.RequestWithHeader("X-Custom", "test-value"); err != nil {
+		fmt.Printf("   ❌ Custom header: %v\n", err)
 	} else {
-		fmt.Printf("    Method: %s, Path: %s - Success\n", lastMethod, lastPath)
+		fmt.Println("   ✅ Request with custom header received")
 	}
+
+	if err := assert.RequestWithQueryParam("id", "123"); err != nil {
+		fmt.Printf("   ❌ Query param: %v\n", err)
+	} else {
+		fmt.Println("   ✅ Request with query param received")
+	}
+
+	// Verify request sequence
+	if err := assert.VerifySequence("/api/data", "/api/data"); err != nil {
+		fmt.Printf("   ❌ Sequence: %v\n", err)
+	} else {
+		fmt.Println("   ✅ Request sequence verified")
+	}
+
+	// Access request history
+	requests := mock.Requests()
+	fmt.Printf("   📝 Total requests recorded: %d\n\n", len(requests))
 }
 
-// responseCodesTesting demonstrates testing different HTTP response codes
-func responseCodesTesting() {
-	testCases := []struct {
-		code        int
-		path        string
-		description string
-	}{
-		{200, "/users/200", "Success"},
-		{201, "/users/201", "Created"},
-		{400, "/users/400", "Bad Request"},
-		{401, "/users/401", "Unauthorized"},
-		{403, "/users/403", "Forbidden"},
-		{404, "/users/404", "Not Found"},
-		{500, "/users/500", "Internal Server Error"},
-		{503, "/users/503", "Service Unavailable"},
-	}
+// errorSimulationExample demonstrates error simulation features
+func errorSimulationExample() {
+	fmt.Println("4. Error Simulation Example")
+	fmt.Println("   Testing error handling scenarios...")
 
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Extract expected status code from path
-		for _, tc := range testCases {
-			if strings.Contains(r.URL.Path, fmt.Sprintf("/%d", tc.code)) {
-				w.WriteHeader(tc.code)
-				if tc.code >= 200 && tc.code < 300 {
-					_, _ = w.Write([]byte(`{"id": 1, "name": "Test User", "email": "test@example.com"}`))
-				} else {
-					fmt.Fprintf(w, `{"error": "%s", "code": %d}`, tc.description, tc.code)
-				}
-				return
-			}
-		}
-		w.WriteHeader(http.StatusNotFound)
-	}))
-	defer mockServer.Close()
+	mock := httpxtesting.NewMockServer()
+	defer mock.Close()
 
-	client := httpx.NewClient(httpx.WithDefaultBaseURL(mockServer.URL))
+	// Simulate various error conditions
+	mock.OnGet("/400").SimulateError().BadRequest("invalid input")
+	mock.OnGet("/401").SimulateError().Unauthorized()
+	mock.OnGet("/403").SimulateError().Forbidden()
+	mock.OnGet("/404").SimulateError().NotFound()
+	mock.OnGet("/429").SimulateError().TooManyRequests(60)
+	mock.OnGet("/500").SimulateError().InternalServerError()
+	mock.OnGet("/503").SimulateError().ServiceUnavailable(120)
+	mock.OnGet("/504").SimulateError().GatewayTimeout()
 
-	for _, tc := range testCases {
-		fmt.Printf("  Testing %d (%s):\n", tc.code, tc.description)
+	// Simulate slow responses
+	mock.OnGet("/slow").SimulateError().Slow(100 * time.Millisecond)
 
-		req := httpx.NewRequest(http.MethodGet, httpx.WithPath(tc.path))
-		response, err := client.Execute(*req, map[string]any{})
+	// Test error responses
+	testError(mock, "/400", "Bad Request")
+	testError(mock, "/401", "Unauthorized")
+	testError(mock, "/404", "Not Found")
+	testError(mock, "/429", "Too Many Requests")
+	testError(mock, "/500", "Internal Server Error")
+	testError(mock, "/503", "Service Unavailable")
 
-		if err != nil {
-			fmt.Printf("    Error: %v\n", err)
-		} else {
-			fmt.Printf("    Status: %d, Body: %+v\n", response.StatusCode, response.Body)
-		}
-	}
+	// Test slow response
+	start := time.Now()
+	resp, _ := http.Get(mock.URL() + "/slow")
+	resp.Body.Close()
+	elapsed := time.Since(start)
+	fmt.Printf("   Slow response took %v (expected ≥100ms)\n\n", elapsed)
 }
 
-// integrationTestingPatterns demonstrates patterns for integration testing
-func integrationTestingPatterns() {
-	fmt.Println("  Integration Testing Patterns:")
+// flakyBehaviorExample demonstrates flaky response simulation
+func flakyBehaviorExample() {
+	fmt.Println("5. Flaky Behavior Example")
+	fmt.Println("   Testing intermittent failures...")
 
-	// Pattern 1: Test server lifecycle management
-	fmt.Println("\n    Pattern 1: Server Lifecycle Management")
-	server := createTestServer()
-	defer server.Close() // Always clean up
+	mock := httpxtesting.NewMockServer()
+	defer mock.Close()
 
-	service := NewUserService(server.URL)
-	user, err := service.GetUser(1)
-	if err != nil {
-		fmt.Printf("      Error: %v\n", err)
+	// Configure flaky endpoint: fail 2 times, succeed 3 times, repeat
+	mock.OnFlaky("/flaky", 2).
+		WithPattern(3, 2).
+		Configure()
+
+	// Make multiple requests to see the pattern
+	fmt.Println("   Making 10 requests to flaky endpoint:")
+	for i := 1; i <= 10; i++ {
+		resp, _ := http.Get(mock.URL() + "/flaky")
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+
+		status := "✅"
+		if resp.StatusCode != http.StatusOK {
+			status = "❌"
+		}
+		fmt.Printf("   Request %2d: %s %d - %s\n", i, status, resp.StatusCode, string(body))
+	}
+	fmt.Println()
+}
+
+// Helper function to test request matchers
+func testMatcher(mock *httpxtesting.MockServer, method, path string, headers map[string]string, description string) {
+	req, _ := http.NewRequest(method, mock.URL()+path, nil)
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	resp, _ := http.DefaultClient.Do(req)
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	fmt.Printf("   %s: %s\n", description, string(body))
+}
+
+// Helper function to test error responses
+func testError(mock *httpxtesting.MockServer, path, description string) {
+	resp, _ := http.Get(mock.URL() + path)
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+
+	var errData map[string]interface{}
+	if err := json.Unmarshal(body, &errData); err == nil {
+		fmt.Printf("   %s (%d): %v\n", description, resp.StatusCode, errData["error"])
 	} else {
-		fmt.Printf("      Retrieved user: %+v\n", *user)
+		fmt.Printf("   %s (%d): %s\n", description, resp.StatusCode, string(body))
 	}
-
-	// Pattern 2: State verification
-	fmt.Println("\n    Pattern 2: State Verification")
-	stateServer := createStatefulTestServer()
-	defer stateServer.Close()
-
-	stateService := NewUserService(stateServer.URL)
-
-	// Create user
-	newUser := User{Name: "State Test User", Email: "state@example.com"}
-	created, err := stateService.CreateUser(newUser)
-	if err != nil {
-		fmt.Printf("      Create error: %v\n", err)
-	} else {
-		fmt.Printf("      Created user: %+v\n", *created)
-	}
-
-	// Verify user exists
-	retrieved, err := stateService.GetUser(created.ID)
-	if err != nil {
-		fmt.Printf("      Retrieve error: %v\n", err)
-	} else {
-		fmt.Printf("      Retrieved user: %+v\n", *retrieved)
-		if retrieved.Name == created.Name {
-			fmt.Printf("      ✅ State verification passed\n")
-		} else {
-			fmt.Printf("      ❌ State verification failed\n")
-		}
-	}
-
-	// Pattern 3: Error condition testing
-	fmt.Println("\n    Pattern 3: Error Condition Testing")
-	errorServer := createErrorTestServer()
-	defer errorServer.Close()
-
-	errorService := NewUserService(errorServer.URL)
-
-	// Test various error conditions
-	errorConditions := []int{400, 401, 403, 404, 500, 503}
-	for _, code := range errorConditions {
-		_, err := errorService.GetUser(code)
-		if err != nil {
-			fmt.Printf("      Error %d: %v\n", code, err)
-		}
-	}
-}
-
-// Helper functions for creating test servers
-
-func createTestServer() *httptest.Server {
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"id": 1, "name": "Integration Test User", "email": "integration@example.com"}`))
-	}))
-}
-
-func createStatefulTestServer() *httptest.Server {
-	users := make(map[int]User)
-	nextID := 1
-
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
-		switch r.Method {
-		case methodGet:
-			// Parse user ID from path
-			var userID int
-			_, _ = fmt.Sscanf(r.URL.Path, "/users/%d", &userID)
-
-			if user, exists := users[userID]; exists {
-				w.WriteHeader(http.StatusOK)
-				response := fmt.Sprintf(`{"id": %d, "name": "%s", "email": "%s"}`,
-					user.ID, user.Name, user.Email)
-				_, _ = w.Write([]byte(response))
-			} else {
-				w.WriteHeader(http.StatusNotFound)
-				_, _ = w.Write([]byte(`{"error": "user not found"}`))
-			}
-
-		case methodPost:
-			// Create new user
-			user := User{ID: nextID, Name: "State Test User", Email: "state@example.com"}
-			users[nextID] = user
-			nextID++
-
-			w.WriteHeader(http.StatusCreated)
-			response := fmt.Sprintf(`{"id": %d, "name": "%s", "email": "%s"}`,
-				user.ID, user.Name, user.Email)
-			_, _ = w.Write([]byte(response))
-
-		default:
-			w.WriteHeader(http.StatusMethodNotAllowed)
-		}
-	}))
-}
-
-func createErrorTestServer() *httptest.Server {
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Extract expected error code from user ID in path
-		var code int
-		_, _ = fmt.Sscanf(r.URL.Path, "/users/%d", &code)
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(code)
-
-		switch code {
-		case 400:
-			_, _ = w.Write([]byte(`{"error": "bad request"}`))
-		case 401:
-			_, _ = w.Write([]byte(`{"error": "unauthorized"}`))
-		case 403:
-			_, _ = w.Write([]byte(`{"error": "forbidden"}`))
-		case 404:
-			_, _ = w.Write([]byte(`{"error": "not found"}`))
-		case 500:
-			_, _ = w.Write([]byte(`{"error": "internal server error"}`))
-		case 503:
-			_, _ = w.Write([]byte(`{"error": "service unavailable"}`))
-		default:
-			_, _ = w.Write([]byte(`{"error": "unknown error"}`))
-		}
-	}))
 }
