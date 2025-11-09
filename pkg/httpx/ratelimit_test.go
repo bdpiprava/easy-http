@@ -124,7 +124,13 @@ func TestTokenBucketLimiter_Allow(t *testing.T) {
 			blocked := 0
 
 			for i := range tc.numRequests {
-				ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+				// Use a context timeout longer than the wait time to avoid premature cancellation
+				timeout := 50 * time.Millisecond
+				if tc.waitBetween > 0 {
+					// For tests with waitBetween, use a longer timeout to account for refill waits
+					timeout = 500 * time.Millisecond
+				}
+				ctx, cancel := context.WithTimeout(context.Background(), timeout)
 				err := subject.Allow(ctx)
 				cancel()
 
@@ -201,39 +207,47 @@ func TestTokenBucketLimiter_UpdateFromHeaders(t *testing.T) {
 	}{
 		{
 			name: "parses standard X-RateLimit headers",
-			headers: http.Header{
-				"X-RateLimit-Limit":     []string{"100"},
-				"X-RateLimit-Remaining": []string{"50"},
-				"X-RateLimit-Reset":     []string{"1640000000"},
-			},
+			headers: func() http.Header {
+				h := http.Header{}
+				h.Set("X-RateLimit-Limit", "100")
+				h.Set("X-RateLimit-Remaining", "50")
+				h.Set("X-RateLimit-Reset", "1640000000")
+				return h
+			}(),
 			wantLimit:     100,
 			wantRemaining: 50,
 			wantResetAt:   true,
 		},
 		{
 			name: "handles partial headers",
-			headers: http.Header{
-				"X-RateLimit-Limit": []string{"200"},
-			},
+			headers: func() http.Header {
+				h := http.Header{}
+				h.Set("X-RateLimit-Limit", "200")
+				return h
+			}(),
 			wantLimit:     200,
 			wantRemaining: -1,
 			wantResetAt:   false,
 		},
 		{
 			name: "ignores invalid values",
-			headers: http.Header{
-				"X-RateLimit-Limit":     []string{"invalid"},
-				"X-RateLimit-Remaining": []string{"also-invalid"},
-			},
+			headers: func() http.Header {
+				h := http.Header{}
+				h.Set("X-RateLimit-Limit", "invalid")
+				h.Set("X-RateLimit-Remaining", "also-invalid")
+				return h
+			}(),
 			wantLimit:     -1,
 			wantRemaining: -1,
 			wantResetAt:   false,
 		},
 		{
 			name: "parses HTTP date format for reset",
-			headers: http.Header{
-				"X-RateLimit-Reset": []string{"Mon, 02 Jan 2006 15:04:05 GMT"},
-			},
+			headers: func() http.Header {
+				h := http.Header{}
+				h.Set("X-RateLimit-Reset", "Mon, 02 Jan 2006 15:04:05 GMT")
+				return h
+			}(),
 			wantLimit:     -1,
 			wantRemaining: -1,
 			wantResetAt:   true,
@@ -277,11 +291,10 @@ func TestTokenBucketLimiter_Status(t *testing.T) {
 		subject := httpx.NewTokenBucketLimiter(10, 20)
 
 		// Update with headers
-		headers := http.Header{
-			"X-RateLimit-Limit":     []string{"100"},
-			"X-RateLimit-Remaining": []string{"75"},
-			"X-RateLimit-Reset":     []string{"1640000000"},
-		}
+		headers := http.Header{}
+		headers.Set("X-RateLimit-Limit", "100")
+		headers.Set("X-RateLimit-Remaining", "75")
+		headers.Set("X-RateLimit-Reset", "1640000000")
 		subject.UpdateFromHeaders(headers)
 
 		got := subject.Status()

@@ -49,7 +49,7 @@ func httpProxyExample() {
 	}
 
 	fmt.Printf("Status: %d\n", resp.StatusCode)
-	fmt.Printf("Response: %s\n", resp.Body())
+	fmt.Printf("Response: %s\n", resp.Body)
 }
 
 // Example 2: Configure SOCKS5 proxy
@@ -67,7 +67,7 @@ func socks5ProxyExample() {
 	}
 
 	fmt.Printf("Status: %d\n", resp.StatusCode)
-	fmt.Printf("Response: %s\n", resp.Body())
+	fmt.Printf("Response: %s\n", resp.Body)
 }
 
 // Example 3: Proxy with authentication
@@ -86,7 +86,7 @@ func proxyWithAuthExample() {
 	}
 
 	fmt.Printf("Status: %d\n", resp.StatusCode)
-	fmt.Printf("Response: %s\n", resp.Body())
+	fmt.Printf("Response: %s\n", resp.Body)
 }
 
 // Example 4: Proxy with bypass rules (no-proxy list)
@@ -95,10 +95,10 @@ func proxyWithBypassExample() {
 		httpx.WithClientDefaultBaseURL("https://httpbin.org"),
 		httpx.WithClientProxy("http://proxy.example.com:8080"),
 		httpx.WithClientNoProxy([]string{
-			"localhost",          // Bypass localhost
-			"*.internal.com",     // Bypass wildcard domains
-			"192.168.0.0/16",     // Bypass CIDR range
-			".company.local",     // Bypass domain suffix
+			"localhost",      // Bypass localhost
+			"*.internal.com", // Bypass wildcard domains
+			"192.168.0.0/16", // Bypass CIDR range
+			".company.local", // Bypass domain suffix
 		}),
 	)
 
@@ -111,7 +111,7 @@ func proxyWithBypassExample() {
 	}
 
 	fmt.Printf("Status: %d\n", resp.StatusCode)
-	fmt.Printf("Response: %s\n", resp.Body())
+	fmt.Printf("Response: %s\n", resp.Body)
 }
 
 // Example 5: Use system proxy from environment variables
@@ -130,7 +130,7 @@ func systemProxyExample() {
 	}
 
 	fmt.Printf("Status: %d\n", resp.StatusCode)
-	fmt.Printf("Response: %s\n", resp.Body())
+	fmt.Printf("Response: %s\n", resp.Body)
 }
 
 // Example 6: Override client proxy for specific request

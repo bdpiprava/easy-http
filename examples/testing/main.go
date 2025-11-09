@@ -13,7 +13,7 @@ import (
 // Example demonstrates how to use the httpx testing utilities
 // to test HTTP clients and services
 func main() {
-	fmt.Println("=== Easy-HTTP Testing Utilities Examples ===\n")
+	fmt.Println("=== Easy-HTTP Testing Utilities Examples ===")
 
 	basicMockServerExample()
 	requestMatchersExample()
