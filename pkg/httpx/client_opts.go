@@ -28,9 +28,10 @@ type ClientConfig struct {
 	DefaultBasicAuth BasicAuth   // Default basic auth for all requests
 
 	// Proxy configuration
-	ProxyURL  string    // HTTP/HTTPS proxy URL (e.g., "http://proxy.company.com:8080")
-	ProxyAuth BasicAuth // Proxy authentication credentials
-	NoProxy   []string  // Domains to bypass proxy (e.g., "localhost", "*.internal.com")
+	ProxyURL    string       // HTTP/HTTPS/SOCKS proxy URL (e.g., "http://proxy.company.com:8080", "socks5://localhost:1080")
+	ProxyAuth   BasicAuth    // Proxy authentication credentials
+	NoProxy     []string     // Domains to bypass proxy (e.g., "localhost", "*.internal.com", "192.168.0.0/16")
+	ProxyConfig *ProxyConfig // Internal proxy configuration (automatically populated from ProxyURL/ProxyAuth/NoProxy)
 
 	// Retry configuration
 	RetryPolicy *RetryPolicy // Optional retry policy for all requests
@@ -47,6 +48,7 @@ type ClientConfig struct {
 }
 
 // ClientOptions is a struct that holds the options for the client
+//
 // Deprecated: Use ClientConfig for new code. Maintained for backward compatibility.
 type ClientOptions struct {
 	BaseURL   string
@@ -82,11 +84,17 @@ type RequestConfig struct {
 	Cookies        []*http.Cookie  // Cookies to add to this specific request
 	DisableCookies bool            // If true, disables cookie jar for this specific request
 
+	// Proxy configuration (overrides client proxy for this specific request)
+	ProxyURL     string    // Proxy URL for this request (overrides client proxy)
+	ProxyAuth    BasicAuth // Proxy auth for this request
+	DisableProxy bool      // If true, disables proxy for this specific request
+
 	// Internal
 	Error error // Stores errors from RequestOptions that can't return errors directly
 }
 
 // RequestOptions is a struct that holds the options for the request
+//
 // Deprecated: Use RequestConfig for new code. Maintained for backward compatibility.
 type RequestOptions struct {
 	Method         string
@@ -102,6 +110,9 @@ type RequestOptions struct {
 	Streaming      bool           // If true, response body will not be read into memory
 	Cookies        []*http.Cookie // Cookies to add to this specific request
 	DisableCookies bool           // If true, disables cookie jar for this specific request
+	ProxyURL       string         // Proxy URL for this request (overrides client proxy)
+	ProxyAuth      BasicAuth      // Proxy auth for this request
+	DisableProxy   bool           // If true, disables proxy for this specific request
 }
 
 // ClientConfigOption is a function that modifies ClientConfig
@@ -141,6 +152,9 @@ func (r RequestConfig) ToRequestOptions() RequestOptions {
 		Streaming:      r.Streaming,
 		Cookies:        r.Cookies,
 		DisableCookies: r.DisableCookies,
+		ProxyURL:       r.ProxyURL,
+		ProxyAuth:      r.ProxyAuth,
+		DisableProxy:   r.DisableProxy,
 	}
 }
 

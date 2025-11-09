@@ -1,7 +1,9 @@
 package httpx
 
 import (
+	"context"
 	"log/slog"
+	"net"
 	"net/http"
 	"time"
 )
@@ -76,9 +78,14 @@ func NewClientWithConfig(opts ...ClientConfigOption) *Client {
 		}
 	}
 
-	// Create HTTP client with timeout and optional cookie jar
+	// Create HTTP client with timeout
 	httpClient := &http.Client{
 		Timeout: config.Timeout,
+	}
+
+	// Configure proxy transport if specified
+	if config.ProxyURL != "" || config.ProxyConfig != nil {
+		httpClient.Transport = configureProxyTransport(&config)
 	}
 
 	// Wire up cookie jar if configured
@@ -93,7 +100,71 @@ func NewClientWithConfig(opts ...ClientConfigOption) *Client {
 	}
 }
 
+// configureProxyTransport sets up the HTTP transport with proxy configuration
+func configureProxyTransport(config *ClientConfig) *http.Transport {
+	// Create a default transport as a base
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+
+	// Build ProxyConfig if not already set
+	if config.ProxyConfig == nil && config.ProxyURL != "" {
+		proxyURL, err := ParseProxyURL(config.ProxyURL)
+		if err != nil {
+			// If proxy URL is invalid, return transport without proxy
+			return transport
+		}
+
+		var proxyAuth *ProxyAuth
+		if config.ProxyAuth.Username != "" || config.ProxyAuth.Password != "" {
+			proxyAuth = &ProxyAuth{
+				Username: config.ProxyAuth.Username,
+				Password: config.ProxyAuth.Password,
+			}
+		}
+
+		config.ProxyConfig = &ProxyConfig{
+			ProxyURL:  proxyURL,
+			NoProxy:   config.NoProxy,
+			ProxyAuth: proxyAuth,
+		}
+	}
+
+	// If no proxy config at this point, use system proxy
+	if config.ProxyConfig == nil {
+		transport.Proxy = GetSystemProxyFunc()
+		return transport
+	}
+
+	proxyConfig := config.ProxyConfig
+
+	// Check if this is a SOCKS proxy (requires special handling)
+	if proxyConfig.ProxyURL != nil {
+		scheme := proxyConfig.ProxyURL.Scheme
+		if scheme == schemeSOCKS4 || scheme == schemeSOCKS5 {
+			// SOCKS proxies need a custom dialer
+			socksDialer, err := CreateSOCKSDialer(proxyConfig.ProxyURL, proxyConfig.ProxyAuth)
+			if err != nil {
+				// If SOCKS dialer creation fails, fall back to no proxy
+				return transport
+			}
+
+			// Create a custom DialContext that uses the SOCKS dialer
+			transport.DialContext = func(_ context.Context, network, addr string) (net.Conn, error) {
+				return socksDialer.Dial(network, addr)
+			}
+
+			// Clear the Proxy field since we're using custom dialer
+			transport.Proxy = nil
+			return transport
+		}
+	}
+
+	// For HTTP/HTTPS proxies, use the standard Proxy function
+	transport.Proxy = CreateProxyFunc(proxyConfig)
+	return transport
+}
+
 // NewClient is a function that returns a new client with the given options and base URL
+//
 // Deprecated: Use NewClientWithConfig for better separation of concerns
 func NewClient(opts ...ClientOption) *Client {
 	cOpts := ClientOptions{
@@ -445,5 +516,47 @@ func WithClientCookieJarManager(manager *CookieJarManager) ClientConfigOption {
 		}
 		c.CookieJar = manager.Jar()
 		c.CookieJarManager = manager
+	}
+}
+
+// WithClientProxy sets the proxy URL for all requests (supports HTTP/HTTPS/SOCKS4/SOCKS5)
+func WithClientProxy(proxyURL string) ClientConfigOption {
+	return func(c *ClientConfig) {
+		c.ProxyURL = proxyURL
+	}
+}
+
+// WithClientProxyAuth sets proxy authentication credentials
+func WithClientProxyAuth(username, password string) ClientConfigOption {
+	return func(c *ClientConfig) {
+		c.ProxyAuth = BasicAuth{
+			Username: username,
+			Password: password,
+		}
+	}
+}
+
+// WithClientNoProxy sets domains/IPs that should bypass the proxy
+// Supports exact match ("example.com"), wildcard ("*.example.com"), and CIDR ("192.168.0.0/16")
+func WithClientNoProxy(domains []string) ClientConfigOption {
+	return func(c *ClientConfig) {
+		c.NoProxy = domains
+	}
+}
+
+// WithClientProxyConfig sets a complete proxy configuration
+func WithClientProxyConfig(proxyConfig ProxyConfig) ClientConfigOption {
+	return func(c *ClientConfig) {
+		c.ProxyConfig = &proxyConfig
+	}
+}
+
+// WithClientSystemProxy enables proxy configuration from environment variables
+// Reads HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables
+func WithClientSystemProxy() ClientConfigOption {
+	return func(c *ClientConfig) {
+		// Leave ProxyURL empty to signal system proxy usage
+		// This will be handled in NewClientWithConfig by using http.ProxyFromEnvironment
+		c.NoProxy = GetSystemNoProxy()
 	}
 }

@@ -275,6 +275,32 @@ func WithoutCookies() RequestOption {
 	}
 }
 
+// WithProxy sets the proxy URL for this specific request (supports HTTP/HTTPS/SOCKS4/SOCKS5)
+// Overrides the client's proxy configuration for this request only
+func WithProxy(proxyURL string) RequestOption {
+	return func(c *RequestOptions) {
+		c.ProxyURL = proxyURL
+	}
+}
+
+// WithProxyAuth sets proxy authentication credentials for this specific request
+func WithProxyAuth(username, password string) RequestOption {
+	return func(c *RequestOptions) {
+		c.ProxyAuth = BasicAuth{
+			Username: username,
+			Password: password,
+		}
+	}
+}
+
+// WithoutProxy disables proxy for this specific request
+// Even if the client has a proxy configured, it won't be used for this request
+func WithoutProxy() RequestOption {
+	return func(c *RequestOptions) {
+		c.DisableProxy = true
+	}
+}
+
 // GET is a function that sends a GET request
 func GET[T any](opts ...RequestOption) (*Response, error) {
 	req := NewRequest(http.MethodGet, opts...)
@@ -432,6 +458,15 @@ func buildOptsFromConfig(clientConfig ClientConfig, request *Request) RequestOpt
 		}
 		if tempOpts.DisableCookies {
 			requestConfig.DisableCookies = true
+		}
+		if tempOpts.ProxyURL != "" {
+			requestConfig.ProxyURL = tempOpts.ProxyURL
+		}
+		if tempOpts.ProxyAuth.Username != "" || tempOpts.ProxyAuth.Password != "" {
+			requestConfig.ProxyAuth = tempOpts.ProxyAuth
+		}
+		if tempOpts.DisableProxy {
+			requestConfig.DisableProxy = true
 		}
 	}
 
