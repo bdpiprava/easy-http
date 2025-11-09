@@ -367,3 +367,16 @@ func WithClientDefaultRateLimit() ClientConfigOption {
 		MaxWaitDuration: 30 * time.Second,
 	})
 }
+
+// WithClientCompression enables automatic compression/decompression
+func WithClientCompression(config CompressionConfig) ClientConfigOption {
+	return func(c *ClientConfig) {
+		compressionMiddleware := NewCompressionMiddleware(config)
+		c.Middlewares = append(c.Middlewares, compressionMiddleware)
+	}
+}
+
+// WithClientDefaultCompression enables compression with default settings
+func WithClientDefaultCompression() ClientConfigOption {
+	return WithClientCompression(DefaultCompressionConfig())
+}
