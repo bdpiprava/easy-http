@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"reflect"
+	"strconv"
 
 	"github.com/pkg/errors"
 )
@@ -88,4 +89,143 @@ func tryParsingErrorResponse(contentBytes []byte) any {
 		return string(contentBytes)
 	}
 	return parsedBody
+}
+
+// Status category helpers
+
+// IsSuccess returns true if the status code is 2xx
+func (r *Response) IsSuccess() bool {
+	return r.StatusCode >= 200 && r.StatusCode < 300
+}
+
+// IsRedirect returns true if the status code is 3xx
+func (r *Response) IsRedirect() bool {
+	return r.StatusCode >= 300 && r.StatusCode < 400
+}
+
+// IsClientError returns true if the status code is 4xx
+func (r *Response) IsClientError() bool {
+	return r.StatusCode >= 400 && r.StatusCode < 500
+}
+
+// IsServerError returns true if the status code is 5xx
+func (r *Response) IsServerError() bool {
+	return r.StatusCode >= 500 && r.StatusCode < 600
+}
+
+// IsError returns true if the status code is 4xx or 5xx
+func (r *Response) IsError() bool {
+	return r.IsClientError() || r.IsServerError()
+}
+
+// Specific status code helpers
+
+// IsOK returns true if the status code is 200
+func (r *Response) IsOK() bool {
+	return r.StatusCode == http.StatusOK
+}
+
+// IsCreated returns true if the status code is 201
+func (r *Response) IsCreated() bool {
+	return r.StatusCode == http.StatusCreated
+}
+
+// IsAccepted returns true if the status code is 202
+func (r *Response) IsAccepted() bool {
+	return r.StatusCode == http.StatusAccepted
+}
+
+// IsNoContent returns true if the status code is 204
+func (r *Response) IsNoContent() bool {
+	return r.StatusCode == http.StatusNoContent
+}
+
+// IsNotModified returns true if the status code is 304
+func (r *Response) IsNotModified() bool {
+	return r.StatusCode == http.StatusNotModified
+}
+
+// IsBadRequest returns true if the status code is 400
+func (r *Response) IsBadRequest() bool {
+	return r.StatusCode == http.StatusBadRequest
+}
+
+// IsUnauthorized returns true if the status code is 401
+func (r *Response) IsUnauthorized() bool {
+	return r.StatusCode == http.StatusUnauthorized
+}
+
+// IsForbidden returns true if the status code is 403
+func (r *Response) IsForbidden() bool {
+	return r.StatusCode == http.StatusForbidden
+}
+
+// IsNotFound returns true if the status code is 404
+func (r *Response) IsNotFound() bool {
+	return r.StatusCode == http.StatusNotFound
+}
+
+// IsConflict returns true if the status code is 409
+func (r *Response) IsConflict() bool {
+	return r.StatusCode == http.StatusConflict
+}
+
+// IsTooManyRequests returns true if the status code is 429
+func (r *Response) IsTooManyRequests() bool {
+	return r.StatusCode == http.StatusTooManyRequests
+}
+
+// IsInternalServerError returns true if the status code is 500
+func (r *Response) IsInternalServerError() bool {
+	return r.StatusCode == http.StatusInternalServerError
+}
+
+// IsBadGateway returns true if the status code is 502
+func (r *Response) IsBadGateway() bool {
+	return r.StatusCode == http.StatusBadGateway
+}
+
+// IsServiceUnavailable returns true if the status code is 503
+func (r *Response) IsServiceUnavailable() bool {
+	return r.StatusCode == http.StatusServiceUnavailable
+}
+
+// IsGatewayTimeout returns true if the status code is 504
+func (r *Response) IsGatewayTimeout() bool {
+	return r.StatusCode == http.StatusGatewayTimeout
+}
+
+// Header convenience helpers
+
+// ContentType returns the Content-Type header value
+func (r *Response) ContentType() string {
+	return r.Header().Get("Content-Type")
+}
+
+// ContentLength returns the Content-Length header value as int64
+func (r *Response) ContentLength() (int64, error) {
+	lengthStr := r.Header().Get("Content-Length")
+	if lengthStr == "" {
+		return 0, nil
+	}
+	length, err := strconv.ParseInt(lengthStr, 10, 64)
+	if err != nil {
+		return 0, errors.Wrapf(err, "failed to parse Content-Length: %s", lengthStr)
+	}
+	return length, nil
+}
+
+// Location returns the Location header value (typically used for redirects)
+func (r *Response) Location() string {
+	return r.Header().Get("Location")
+}
+
+// GetHeader returns the value of a header by name
+func (r *Response) GetHeader(name string) string {
+	return r.Header().Get(name)
+}
+
+// HasHeader returns true if the response contains the specified header
+func (r *Response) HasHeader(name string) bool {
+	return r.Header().Get(name) != ""
 }
