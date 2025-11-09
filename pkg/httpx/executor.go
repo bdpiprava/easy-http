@@ -12,9 +12,8 @@ import (
 
 // execute is a function that executes the request with given client and returns the response
 func execute(client *Client, request *Request, respType any) (*Response, error) {
-	if respType == nil {
-		return nil, errors.New("response type cannot be nil")
-	}
+	// Note: respType can be nil for requests that don't expect response bodies (e.g., HEAD)
+	// The validation is handled downstream in newResponse() where we have body content
 
 	// Build request options to check for streaming mode
 	// Use new config architecture if available, fall back to old for compatibility
@@ -46,7 +45,18 @@ func executeWithMiddleware(client *Client, _ *Request, requestOpts RequestOption
 	}
 
 	// Create the final handler that performs the actual HTTP call
+	// Handle DisableCookies by using a temporary client without cookie jar
 	finalHandler := func(_ context.Context, httpReq *http.Request) (*http.Response, error) {
+		if requestOpts.DisableCookies && client.client.Jar != nil {
+			// Create temporary client without cookie jar for this request
+			tempClient := &http.Client{
+				Timeout: client.client.Timeout,
+				// Copy other settings but omit Jar
+				CheckRedirect: client.client.CheckRedirect,
+				Transport:     client.client.Transport,
+			}
+			return tempClient.Do(httpReq)
+		}
 		return client.client.Do(httpReq)
 	}
 
@@ -95,6 +105,11 @@ func buildRequestFromConfig(opts RequestOptions) (*http.Request, error) {
 	// Apply basic auth if specified
 	if opts.BasicAuth.Username != "" || opts.BasicAuth.Password != "" {
 		req.SetBasicAuth(opts.BasicAuth.Username, opts.BasicAuth.Password)
+	}
+
+	// Add cookies to request
+	for _, cookie := range opts.Cookies {
+		req.AddCookie(cookie)
 	}
 
 	return req, nil

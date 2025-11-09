@@ -38,19 +38,70 @@ func TestRequestTestSuite(t *testing.T) {
 }
 
 func (s *RequestTestSuite) Test_GET() {
-	s.run(getTestCases("GET"), httpx.GET[map[string]any])
+	s.run(getTestCases("GET"), httpx.GET[any])
 }
 
 func (s *RequestTestSuite) Test_POST() {
-	s.run(getTestCases("POST"), httpx.POST[map[string]any])
+	s.run(getTestCases("POST"), httpx.POST[any])
 }
 
 func (s *RequestTestSuite) Test_DELETE() {
-	s.run(getTestCases("DELETE"), httpx.DELETE[map[string]any])
+	s.run(getTestCases("DELETE"), httpx.DELETE[any])
 }
 
 func (s *RequestTestSuite) Test_PUT() {
-	s.run(getTestCases("PUT"), httpx.PUT[map[string]any])
+	s.run(getTestCases("PUT"), httpx.PUT[any])
+}
+
+func (s *RequestTestSuite) Test_PATCH() {
+	s.run(getTestCases("PATCH"), httpx.PATCH[any])
+}
+
+func (s *RequestTestSuite) Test_HEAD() {
+	mockServer := NewMockServer()
+	defer mockServer.Close()
+
+	testCases := []struct {
+		name           string
+		serverStatus   int
+		wantStatusCode int
+	}{
+		{
+			name:           "HEAD request with 200 status code",
+			serverStatus:   200,
+			wantStatusCode: 200,
+		},
+		{
+			name:           "HEAD request with 404 status code",
+			serverStatus:   404,
+			wantStatusCode: 404,
+		},
+		{
+			name:           "HEAD request with 500 status code",
+			serverStatus:   500,
+			wantStatusCode: 500,
+		},
+	}
+
+	for _, tc := range testCases {
+		s.Run(tc.name, func() {
+			randomID := uuid.New().String()
+			// HEAD responses don't have bodies, only headers and status
+			mockServer.SetupMock("HEAD", "/api/v1/"+randomID, tc.serverStatus, "")
+
+			resp, err := httpx.HEAD[any](
+				httpx.WithBaseURL(mockServer.GetURL()),
+				httpx.WithPath("/api/v1", randomID),
+				httpx.WithQueryParam("region", "us"),
+				httpx.WithHeader("Authorization", "Bearer abcd"),
+			)
+
+			s.Require().NoError(err)
+			s.Require().Equal(tc.wantStatusCode, resp.StatusCode)
+			// HEAD requests should not have a body
+			s.Require().Empty(resp.RawBody)
+		})
+	}
 }
 
 func (s *RequestTestSuite) run(testCases []testCase, caller func(opts ...httpx.RequestOption) (*httpx.Response, error)) {
@@ -101,6 +152,36 @@ func getTestCases(method string) []testCase {
 			serverAPI:      serverAPI{method: method, status: 500, body: `{"error": "internal server error"}`},
 			wantResponse:   map[string]any{"error": "internal server error"},
 			wantStatusCode: 500,
+		},
+		{
+			name:           fmt.Sprintf("%s request with JSON array of objects", method),
+			serverAPI:      serverAPI{method: method, status: 200, body: `[{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}]`},
+			wantResponse:   []any{map[string]any{"id": float64(1), "name": "Alice"}, map[string]any{"id": float64(2), "name": "Bob"}},
+			wantStatusCode: 200,
+		},
+		{
+			name:           fmt.Sprintf("%s request with JSON array of primitives", method),
+			serverAPI:      serverAPI{method: method, status: 200, body: `[1, 2, 3, 4, 5]`},
+			wantResponse:   []any{float64(1), float64(2), float64(3), float64(4), float64(5)},
+			wantStatusCode: 200,
+		},
+		{
+			name:           fmt.Sprintf("%s request with JSON string primitive", method),
+			serverAPI:      serverAPI{method: method, status: 200, body: `"hello world"`},
+			wantResponse:   "hello world",
+			wantStatusCode: 200,
+		},
+		{
+			name:           fmt.Sprintf("%s request with JSON number primitive", method),
+			serverAPI:      serverAPI{method: method, status: 200, body: `42.5`},
+			wantResponse:   float64(42.5),
+			wantStatusCode: 200,
+		},
+		{
+			name:           fmt.Sprintf("%s request with JSON boolean primitive", method),
+			serverAPI:      serverAPI{method: method, status: 200, body: `true`},
+			wantResponse:   true,
+			wantStatusCode: 200,
 		},
 		{
 			name:           fmt.Sprintf("%s request with invalid json payload", method),
@@ -194,6 +275,69 @@ func (s *RequestTestSuite) Test_RequestOpts() {
 				// WithStreaming doesn't affect the actual HTTP request,
 				// only the response processing, so just verify the request is valid
 				s.NotNil(req)
+			},
+		},
+		{
+			name: "WithFormData",
+			opts: []httpx.RequestOption{httpx.WithFormData(map[string][]string{
+				"username": {"alice"},
+				"password": {"secret123"},
+			})},
+			assertFn: func(req *http.Request) {
+				content, err := io.ReadAll(req.Body)
+				s.Require().NoError(err)
+				s.Equal("application/x-www-form-urlencoded", req.Header.Get("Content-Type"))
+				// URL encoding can have different orders, so check both possibilities
+				bodyStr := string(content)
+				s.Contains(bodyStr, "username=alice")
+				s.Contains(bodyStr, "password=secret123")
+			},
+		},
+		{
+			name: "WithFormData with special characters",
+			opts: []httpx.RequestOption{httpx.WithFormData(map[string][]string{
+				"email": {"user@example.com"},
+				"name":  {"John Doe"},
+			})},
+			assertFn: func(req *http.Request) {
+				content, err := io.ReadAll(req.Body)
+				s.Require().NoError(err)
+				s.Equal("application/x-www-form-urlencoded", req.Header.Get("Content-Type"))
+				bodyStr := string(content)
+				// @ should be encoded as %40, space as +
+				s.Contains(bodyStr, "email=user%40example.com")
+				s.Contains(bodyStr, "name=John+Doe")
+			},
+		},
+		{
+			name: "WithFormData with nil values",
+			opts: []httpx.RequestOption{httpx.WithFormData(nil)},
+			assertFn: func(req *http.Request) {
+				// Should not set body or content-type when nil
+				s.Nil(req.Body)
+			},
+		},
+		{
+			name: "WithFormFields",
+			opts: []httpx.RequestOption{httpx.WithFormFields(map[string]string{
+				"grant_type": "client_credentials",
+				"client_id":  "my-client-id",
+			})},
+			assertFn: func(req *http.Request) {
+				content, err := io.ReadAll(req.Body)
+				s.Require().NoError(err)
+				s.Equal("application/x-www-form-urlencoded", req.Header.Get("Content-Type"))
+				bodyStr := string(content)
+				s.Contains(bodyStr, "grant_type=client_credentials")
+				s.Contains(bodyStr, "client_id=my-client-id")
+			},
+		},
+		{
+			name: "WithFormFields with nil values",
+			opts: []httpx.RequestOption{httpx.WithFormFields(nil)},
+			assertFn: func(req *http.Request) {
+				// Should not set body or content-type when nil
+				s.Nil(req.Body)
 			},
 		},
 	}
@@ -455,6 +599,7 @@ func (s *RequestTestSuite) TestStructuredLogging() {
 	mockServer.SetupMock("GET", "/test", 200, testResponseBody)
 
 	// Create client with logger
+
 	client := httpx.NewClient(
 		httpx.WithLogger(logger),
 		httpx.WithLogLevel(slog.LevelDebug),
@@ -495,6 +640,7 @@ func (s *RequestTestSuite) TestLoggingLevels() {
 	mockServer.SetupMock("GET", "/test", 200, testResponseBody)
 
 	// Create client with logger set to INFO level
+
 	client := httpx.NewClient(
 		httpx.WithLogger(logger),
 		httpx.WithLogLevel(slog.LevelInfo),
@@ -527,6 +673,7 @@ func (s *RequestTestSuite) TestLoggingWithErrors() {
 	}))
 
 	// Create client with logger
+
 	client := httpx.NewClient(
 		httpx.WithLogger(logger),
 		httpx.WithLogLevel(slog.LevelDebug),
@@ -547,4 +694,52 @@ func (s *RequestTestSuite) TestLoggingWithErrors() {
 	logs := logBuffer.String()
 	s.Contains(logs, "Failed to execute HTTP request")
 	s.Contains(logs, "level=ERROR")
+}
+
+func (s *RequestTestSuite) TestFormDataIntegration() {
+	// Setup mock server
+	mockServer := NewMockServer()
+	defer mockServer.Close()
+
+	mockServer.SetupMock("POST", "/login", 200, `{"token":"abc123"}`)
+
+	// Test WithFormFields
+	resp, err := httpx.POST[map[string]any](
+		httpx.WithBaseURL(mockServer.GetURL()),
+		httpx.WithPath("/login"),
+		httpx.WithFormFields(map[string]string{
+			"username": "alice",
+			"password": "secret123",
+		}),
+	)
+
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+	s.Equal(200, resp.StatusCode)
+	s.Equal("abc123", resp.Body.(map[string]any)["token"])
+}
+
+func (s *RequestTestSuite) TestFormDataWithMultipleValues() {
+	// Setup mock server
+	mockServer := NewMockServer()
+	defer mockServer.Close()
+
+	mockServer.SetupMock("POST", "/oauth/token", 200, `{"access_token":"xyz789"}`)
+
+	// Test WithFormData with url.Values for multiple values per key
+	formData := map[string][]string{
+		"grant_type": {"client_credentials"},
+		"scope":      {"read", "write"},
+	}
+
+	resp, err := httpx.POST[map[string]any](
+		httpx.WithBaseURL(mockServer.GetURL()),
+		httpx.WithPath("/oauth/token"),
+		httpx.WithFormData(formData),
+	)
+
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+	s.Equal(200, resp.StatusCode)
+	s.Equal("xyz789", resp.Body.(map[string]any)["access_token"])
 }

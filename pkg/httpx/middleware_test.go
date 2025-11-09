@@ -380,6 +380,7 @@ func TestMiddlewareWithLegacyClient(t *testing.T) {
 		defer server.Close()
 
 		// Create old-style client (no middlewares)
+
 		client := httpx.NewClient(
 			httpx.WithDefaultBaseURL(server.URL),
 		)

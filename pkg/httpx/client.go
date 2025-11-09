@@ -1,7 +1,9 @@
 package httpx
 
 import (
+	"context"
 	"log/slog"
+	"net"
 	"net/http"
 	"time"
 )
@@ -76,14 +78,93 @@ func NewClientWithConfig(opts ...ClientConfigOption) *Client {
 		}
 	}
 
+	// Create HTTP client with timeout
+	httpClient := &http.Client{
+		Timeout: config.Timeout,
+	}
+
+	// Configure proxy transport if specified
+	if config.ProxyURL != "" || config.ProxyConfig != nil {
+		httpClient.Transport = configureProxyTransport(&config)
+	}
+
+	// Wire up cookie jar if configured
+	if config.CookieJar != nil {
+		httpClient.Jar = config.CookieJar
+	}
+
 	return &Client{
 		config:        config,
 		clientOptions: config.ToClientOptions(), // For backward compatibility
-		client:        &http.Client{Timeout: config.Timeout},
+		client:        httpClient,
 	}
 }
 
+// configureProxyTransport sets up the HTTP transport with proxy configuration
+func configureProxyTransport(config *ClientConfig) *http.Transport {
+	// Create a default transport as a base
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+
+	// Build ProxyConfig if not already set
+	if config.ProxyConfig == nil && config.ProxyURL != "" {
+		proxyURL, err := ParseProxyURL(config.ProxyURL)
+		if err != nil {
+			// If proxy URL is invalid, return transport without proxy
+			return transport
+		}
+
+		var proxyAuth *ProxyAuth
+		if config.ProxyAuth.Username != "" || config.ProxyAuth.Password != "" {
+			proxyAuth = &ProxyAuth{
+				Username: config.ProxyAuth.Username,
+				Password: config.ProxyAuth.Password,
+			}
+		}
+
+		config.ProxyConfig = &ProxyConfig{
+			ProxyURL:  proxyURL,
+			NoProxy:   config.NoProxy,
+			ProxyAuth: proxyAuth,
+		}
+	}
+
+	// If no proxy config at this point, use system proxy
+	if config.ProxyConfig == nil {
+		transport.Proxy = GetSystemProxyFunc()
+		return transport
+	}
+
+	proxyConfig := config.ProxyConfig
+
+	// Check if this is a SOCKS proxy (requires special handling)
+	if proxyConfig.ProxyURL != nil {
+		scheme := proxyConfig.ProxyURL.Scheme
+		if scheme == schemeSOCKS4 || scheme == schemeSOCKS5 {
+			// SOCKS proxies need a custom dialer
+			socksDialer, err := CreateSOCKSDialer(proxyConfig.ProxyURL, proxyConfig.ProxyAuth)
+			if err != nil {
+				// If SOCKS dialer creation fails, fall back to no proxy
+				return transport
+			}
+
+			// Create a custom DialContext that uses the SOCKS dialer
+			transport.DialContext = func(_ context.Context, network, addr string) (net.Conn, error) {
+				return socksDialer.Dial(network, addr)
+			}
+
+			// Clear the Proxy field since we're using custom dialer
+			transport.Proxy = nil
+			return transport
+		}
+	}
+
+	// For HTTP/HTTPS proxies, use the standard Proxy function
+	transport.Proxy = CreateProxyFunc(proxyConfig)
+	return transport
+}
+
 // NewClient is a function that returns a new client with the given options and base URL
+//
 // Deprecated: Use NewClientWithConfig for better separation of concerns
 func NewClient(opts ...ClientOption) *Client {
 	cOpts := ClientOptions{
@@ -329,5 +410,153 @@ func WithClientConservativeCircuitBreaker() ClientConfigOption {
 	config := ConservativeCircuitBreakerConfig()
 	return func(c *ClientConfig) {
 		c.CircuitBreakerConfig = &config
+	}
+}
+
+// WithClientCache enables HTTP caching with the specified configuration
+func WithClientCache(config CacheConfig) ClientConfigOption {
+	return func(c *ClientConfig) {
+		cacheMiddleware := NewCacheMiddleware(config)
+		c.Middlewares = append(c.Middlewares, cacheMiddleware)
+	}
+}
+
+// WithClientDefaultCache enables HTTP caching with default settings
+func WithClientDefaultCache() ClientConfigOption {
+	return WithClientCache(CacheConfig{
+		Backend:      NewInMemoryCache(1000),
+		DefaultTTL:   5 * time.Minute,
+		MaxSizeBytes: 10 * 1024 * 1024, // 10MB
+	})
+}
+
+// WithClientRateLimit adds rate limiting to all requests
+func WithClientRateLimit(config RateLimitConfig) ClientConfigOption {
+	return func(c *ClientConfig) {
+		rateLimitMiddleware := NewRateLimitMiddleware(config)
+		c.Middlewares = append(c.Middlewares, rateLimitMiddleware)
+	}
+}
+
+// WithClientDefaultRateLimit adds default rate limiting (10 req/sec with burst of 20)
+func WithClientDefaultRateLimit() ClientConfigOption {
+	return WithClientRateLimit(RateLimitConfig{
+		Strategy:        RateLimitTokenBucket,
+		RequestsPerSec:  10,
+		BurstSize:       20,
+		WaitOnLimit:     true,
+		MaxWaitDuration: 30 * time.Second,
+	})
+}
+
+// WithClientCompression enables automatic compression/decompression
+func WithClientCompression(config CompressionConfig) ClientConfigOption {
+	return func(c *ClientConfig) {
+		compressionMiddleware := NewCompressionMiddleware(config)
+		c.Middlewares = append(c.Middlewares, compressionMiddleware)
+	}
+}
+
+// WithClientDefaultCompression enables compression with default settings
+func WithClientDefaultCompression() ClientConfigOption {
+	return WithClientCompression(DefaultCompressionConfig())
+}
+
+// WithClientPrometheusMetrics enables Prometheus metrics collection
+func WithClientPrometheusMetrics(config PrometheusConfig) ClientConfigOption {
+	return func(c *ClientConfig) {
+		collector, err := NewPrometheusCollector(config)
+		if err != nil {
+			// Log error but don't fail client creation
+			return
+		}
+		metricsMiddleware := NewMetricsMiddleware(collector)
+		c.Middlewares = append(c.Middlewares, metricsMiddleware)
+	}
+}
+
+// WithClientDefaultPrometheusMetrics enables Prometheus metrics with default settings
+func WithClientDefaultPrometheusMetrics() ClientConfigOption {
+	return WithClientPrometheusMetrics(DefaultPrometheusConfig())
+}
+
+// WithClientTracing enables OpenTelemetry distributed tracing
+func WithClientTracing(config TracingConfig) ClientConfigOption {
+	return func(c *ClientConfig) {
+		tracingMiddleware := NewTracingMiddleware(config)
+		// Tracing should be first middleware to capture all operations
+		c.Middlewares = append([]Middleware{tracingMiddleware}, c.Middlewares...)
+	}
+}
+
+// WithClientDefaultTracing enables OpenTelemetry tracing with default settings
+func WithClientDefaultTracing() ClientConfigOption {
+	return WithClientTracing(TracingConfig{})
+}
+
+// WithClientCookieJar enables automatic cookie management with a standard cookie jar
+func WithClientCookieJar() ClientConfigOption {
+	return func(c *ClientConfig) {
+		manager, err := NewCookieJarManager()
+		if err != nil {
+			// Log error but don't fail client creation
+			return
+		}
+		c.CookieJar = manager.Jar()
+		c.CookieJarManager = manager
+	}
+}
+
+// WithClientCookieJarManager enables cookie management with a custom cookie jar manager
+// This allows for advanced cookie persistence and management utilities
+func WithClientCookieJarManager(manager *CookieJarManager) ClientConfigOption {
+	return func(c *ClientConfig) {
+		if manager == nil {
+			return
+		}
+		c.CookieJar = manager.Jar()
+		c.CookieJarManager = manager
+	}
+}
+
+// WithClientProxy sets the proxy URL for all requests (supports HTTP/HTTPS/SOCKS4/SOCKS5)
+func WithClientProxy(proxyURL string) ClientConfigOption {
+	return func(c *ClientConfig) {
+		c.ProxyURL = proxyURL
+	}
+}
+
+// WithClientProxyAuth sets proxy authentication credentials
+func WithClientProxyAuth(username, password string) ClientConfigOption {
+	return func(c *ClientConfig) {
+		c.ProxyAuth = BasicAuth{
+			Username: username,
+			Password: password,
+		}
+	}
+}
+
+// WithClientNoProxy sets domains/IPs that should bypass the proxy
+// Supports exact match ("example.com"), wildcard ("*.example.com"), and CIDR ("192.168.0.0/16")
+func WithClientNoProxy(domains []string) ClientConfigOption {
+	return func(c *ClientConfig) {
+		c.NoProxy = domains
+	}
+}
+
+// WithClientProxyConfig sets a complete proxy configuration
+func WithClientProxyConfig(proxyConfig ProxyConfig) ClientConfigOption {
+	return func(c *ClientConfig) {
+		c.ProxyConfig = &proxyConfig
+	}
+}
+
+// WithClientSystemProxy enables proxy configuration from environment variables
+// Reads HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables
+func WithClientSystemProxy() ClientConfigOption {
+	return func(c *ClientConfig) {
+		// Leave ProxyURL empty to signal system proxy usage
+		// This will be handled in NewClientWithConfig by using http.ProxyFromEnvironment
+		c.NoProxy = GetSystemNoProxy()
 	}
 }

@@ -162,6 +162,68 @@ func WithJSONBody(body any) RequestOption {
 	}
 }
 
+// WithFormData is a function that sets form-encoded data as the request body
+// Automatically sets Content-Type to application/x-www-form-urlencoded
+func WithFormData(data url.Values) RequestOption {
+	return func(c *RequestOptions) {
+		if data == nil {
+			return
+		}
+
+		encoded := data.Encode()
+		c.Headers.Set("Content-Type", "application/x-www-form-urlencoded")
+		c.Body = strings.NewReader(encoded)
+	}
+}
+
+// WithFormFields is a convenience function for WithFormData that accepts a map
+func WithFormFields(fields map[string]string) RequestOption {
+	return func(c *RequestOptions) {
+		if fields == nil {
+			return
+		}
+
+		data := url.Values{}
+		for key, value := range fields {
+			data.Set(key, value)
+		}
+
+		// Delegate to WithFormData
+		WithFormData(data)(c)
+	}
+}
+
+// WithMultipartForm is a function that sets a multipart/form-data body for the request
+func WithMultipartForm(builder *MultipartFormBuilder) RequestOption {
+	return func(c *RequestOptions) {
+		if builder == nil {
+			c.Error = errors.New("multipart form builder cannot be nil")
+			return
+		}
+
+		reader, contentType, err := builder.Build()
+		if err != nil {
+			c.Error = errors.Wrap(err, "failed to build multipart form")
+			return
+		}
+
+		c.Headers.Set("Content-Type", contentType)
+		c.Body = reader
+	}
+}
+
+// WithFile is a convenience function for single file uploads
+func WithFile(fieldName, filePath string) RequestOption {
+	return func(c *RequestOptions) {
+		builder := NewMultipartFormBuilder()
+		if err := builder.AddFileFromPath(fieldName, filePath); err != nil {
+			c.Error = errors.Wrapf(err, "failed to add file from path: %s", filePath)
+			return
+		}
+		WithMultipartForm(builder)(c)
+	}
+}
+
 // WithBasicAuth is a function that sets basic authentication for the request
 func WithBasicAuth(username, password string) RequestOption {
 	return func(c *RequestOptions) {
@@ -178,6 +240,64 @@ func WithBasicAuth(username, password string) RequestOption {
 func WithStreaming() RequestOption {
 	return func(c *RequestOptions) {
 		c.Streaming = true
+	}
+}
+
+// WithCookie adds a single cookie to the request
+func WithCookie(name, value string) RequestOption {
+	return func(c *RequestOptions) {
+		cookie := &http.Cookie{
+			Name:  name,
+			Value: value,
+		}
+		if c.Cookies == nil {
+			c.Cookies = []*http.Cookie{}
+		}
+		c.Cookies = append(c.Cookies, cookie)
+	}
+}
+
+// WithCookies adds multiple cookies to the request
+func WithCookies(cookies []*http.Cookie) RequestOption {
+	return func(c *RequestOptions) {
+		if c.Cookies == nil {
+			c.Cookies = []*http.Cookie{}
+		}
+		c.Cookies = append(c.Cookies, cookies...)
+	}
+}
+
+// WithoutCookies disables the cookie jar for this specific request
+// Even if the client has a cookie jar configured, it won't be used for this request
+func WithoutCookies() RequestOption {
+	return func(c *RequestOptions) {
+		c.DisableCookies = true
+	}
+}
+
+// WithProxy sets the proxy URL for this specific request (supports HTTP/HTTPS/SOCKS4/SOCKS5)
+// Overrides the client's proxy configuration for this request only
+func WithProxy(proxyURL string) RequestOption {
+	return func(c *RequestOptions) {
+		c.ProxyURL = proxyURL
+	}
+}
+
+// WithProxyAuth sets proxy authentication credentials for this specific request
+func WithProxyAuth(username, password string) RequestOption {
+	return func(c *RequestOptions) {
+		c.ProxyAuth = BasicAuth{
+			Username: username,
+			Password: password,
+		}
+	}
+}
+
+// WithoutProxy disables proxy for this specific request
+// Even if the client has a proxy configured, it won't be used for this request
+func WithoutProxy() RequestOption {
+	return func(c *RequestOptions) {
+		c.DisableProxy = true
 	}
 }
 
@@ -202,6 +322,18 @@ func PUT[T any](opts ...RequestOption) (*Response, error) {
 // DELETE is a function that sends a DELETE request
 func DELETE[T any](opts ...RequestOption) (*Response, error) {
 	req := NewRequest(http.MethodDelete, opts...)
+	return defaultClient.Execute(*req, *(new(T)))
+}
+
+// PATCH is a function that sends a PATCH request
+func PATCH[T any](opts ...RequestOption) (*Response, error) {
+	req := NewRequest(http.MethodPatch, opts...)
+	return defaultClient.Execute(*req, *(new(T)))
+}
+
+// HEAD is a function that sends a HEAD request
+func HEAD[T any](opts ...RequestOption) (*Response, error) {
+	req := NewRequest(http.MethodHead, opts...)
 	return defaultClient.Execute(*req, *(new(T)))
 }
 
@@ -318,6 +450,24 @@ func buildOptsFromConfig(clientConfig ClientConfig, request *Request) RequestOpt
 			requestConfig.Error = tempOpts.Error
 		}
 		requestConfig.Streaming = tempOpts.Streaming
+		if len(tempOpts.Cookies) > 0 {
+			if requestConfig.Cookies == nil {
+				requestConfig.Cookies = make([]*http.Cookie, 0)
+			}
+			requestConfig.Cookies = append(requestConfig.Cookies, tempOpts.Cookies...)
+		}
+		if tempOpts.DisableCookies {
+			requestConfig.DisableCookies = true
+		}
+		if tempOpts.ProxyURL != "" {
+			requestConfig.ProxyURL = tempOpts.ProxyURL
+		}
+		if tempOpts.ProxyAuth.Username != "" || tempOpts.ProxyAuth.Password != "" {
+			requestConfig.ProxyAuth = tempOpts.ProxyAuth
+		}
+		if tempOpts.DisableProxy {
+			requestConfig.DisableProxy = true
+		}
 	}
 
 	// Merge with client defaults

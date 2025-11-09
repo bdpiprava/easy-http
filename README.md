@@ -1,101 +1,97 @@
 # easy-http
 
-Simple Go utilities and examples for HTTP interactions.
+**A production-ready HTTP client for Go that doesn't make you cry.**
 
-## Features
+Stop wrestling with `http.DefaultClient` and endless boilerplate. Get type-safe requests, automatic retries, circuit breakers, observability, and everything else you wish the standard library had—without the complexity.
 
-• Go functions to simplify requests, responses, and testing.  
-• Coverage reporting supported via Makefile targets.  
-• Uses standard libraries and helpful third-party packages (e.g., YAML, testify).
+```go
+// That's it. Seriously.
+resp, err := httpx.GET[User](
+    httpx.WithBaseURL("https://api.example.com"),
+    httpx.WithPath("/users/123"),
+)
+```
 
-## Getting Started
+**Built for production** with retries, circuit breakers, rate limiting, caching, tracing, metrics, and middleware—all optional, all composable, none of the headache.
 
-1. Clone or download this repo.  
-2. Run "make deps" to install dependencies.  
-3. Build with "make build" or test with "make tests".
-
-## Usage
-
-### Installation
+## Installation
 
 ```bash
 go get github.com/bdpiprava/easy-http
 ```
 
-### Examples
+## Quick Start
 
 ```go
+package main
+
 import (
     "fmt"
-    "net/http"
-    "time"
-
     "github.com/bdpiprava/easy-http/pkg/httpx"
 )
 
-func Example() {
-    // Create a client with custom base URL and timeout
-    client := httpx.NewClient(
-        httpx.WithDefaultBaseURL("https://api.example.com"),
-        httpx.WithDefaultTimeout(5 * time.Second),
-    )
-
-    // Build a request with a specified path and query parameters
-    req := httpx.NewRequest(http.MethodGet,
-        httpx.WithPath("v1/users"),
-        httpx.WithQueryParam("active", "true"),
-    )
-
-    // Execute the request and handle the response
-    resp, err := client.Execute(*req, map[string]any{})
-    if err != nil {
-        // handle error
-    }
-    fmt.Printf("Status Code: %d\n", resp.StatusCode)
-    fmt.Printf("Response Body: %+v\n", resp.Body)
-}
-```
----
-
-```go
-import (
-    "fmt"
-    "net/http"
-    "time"
-
-    "github.com/bdpiprava/easy-http/pkg/httpx"
-)
-
-// Perform a GET request with a specified type parameter
-func ExampleGET() {
-    resp, err := httpx.GET[map[string]any](
-        httpx.WithBaseURL("https://api.example.com"),
-        httpx.WithPath("v1/posts"),
-    )
-    if err != nil {
-        // handle error
-    }
-    fmt.Println(resp.Body)
+type User struct {
+    ID    int    `json:"id"`
+    Name  string `json:"name"`
+    Email string `json:"email"`
 }
 
-// Perform a POST request with a specified type parameter
-func ExamplePOST() {
-    resp, err := httpx.POST[map[string]any](
+func main() {
+    // GET with automatic JSON unmarshaling
+    user, err := httpx.GET[User](
         httpx.WithBaseURL("https://api.example.com"),
-        httpx.WithPath("v1/posts"),
-        httpx.WithHeader("Content-Type", "application/json"),
+        httpx.WithPath("/users/1"),
     )
     if err != nil {
-        // handle error
+        panic(err)
     }
-    fmt.Println(resp.Body)
+
+    fmt.Printf("Hello, %s!\n", user.Body.Name)
+
+    // POST with type safety
+    newUser := User{Name: "Alice", Email: "alice@example.com"}
+    resp, err := httpx.POST[User](
+        httpx.WithBaseURL("https://api.example.com"),
+        httpx.WithPath("/users"),
+        httpx.WithJSONBody(newUser),
+    )
+
+    fmt.Printf("Created user ID: %d\n", resp.Body.ID)
 }
 ```
 
-## Contributing
+## What You Get
 
-Open issues or pull requests for improvements or bug fixes.
+**Core Features:**
+- 🎯 Type-safe generic responses with automatic JSON unmarshaling
+- 🔄 Fluent API with functional options (no builders, no bloat)
+- 🛡️ Built-in retry logic and circuit breakers
+- ⚡ Rate limiting and request throttling
+- 🗄️ RFC 7234 compliant HTTP caching
+- 📦 Automatic compression (gzip/deflate)
+
+**Observability:**
+- 📊 Prometheus metrics out of the box
+- 🔍 OpenTelemetry distributed tracing
+- 🍪 Smart cookie management
+- 🔐 Built-in auth helpers and middleware support
+
+**No magic. No surprises. Just HTTP that works.**
+
+## Documentation
+
+👉 **[Full documentation, guides, and examples](https://bdpiprava.github.io/easy-http)**
 
 ## License
 
-- [Apache License 2.0](./LICENSE)
+[Apache License 2.0](./LICENSE)
+
+---
+
+<div align="center">
+
+**Made with ❤️ for the Go community**
+
+[⭐ Star this repo](https://github.com/bdpiprava/easy-http) • [📖 Documentation](https://bdpiprava.github.io/easy-http) • [🐛 Report Issues](https://github.com/bdpiprava/easy-http/issues) • [💬 Discussions](https://github.com/bdpiprava/easy-http/discussions)
+
+</div>
