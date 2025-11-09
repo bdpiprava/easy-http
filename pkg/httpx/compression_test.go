@@ -682,7 +682,7 @@ func TestCompressionMiddleware_Execute_ResponseDecompression(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				var dataToSend []byte
 				if tc.compressData {
 					switch tc.serverEncoding {
@@ -774,7 +774,7 @@ func TestCompressionMiddleware_Integration(t *testing.T) {
 	t.Run("compression with custom configuration", func(t *testing.T) {
 		t.Parallel()
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			// Return gzip compressed response
 			testData := []byte(`{"compressed":"response"}`)
 			buf := bytes.NewBuffer(nil)

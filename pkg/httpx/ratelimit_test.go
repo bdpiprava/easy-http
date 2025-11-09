@@ -79,7 +79,7 @@ func TestTokenBucketLimiter_Allow(t *testing.T) {
 			name:           "allows burst requests immediately",
 			requestsPerSec: 10,
 			burstSize:      5,
-			setupLimiter:   func(l *httpx.TokenBucketLimiter) {},
+			setupLimiter:   func(_ *httpx.TokenBucketLimiter) {},
 			numRequests:    5,
 			waitBetween:    0,
 			wantAllowed:    5,
@@ -89,7 +89,7 @@ func TestTokenBucketLimiter_Allow(t *testing.T) {
 			name:           "blocks requests exceeding burst",
 			requestsPerSec: 1,
 			burstSize:      2,
-			setupLimiter:   func(l *httpx.TokenBucketLimiter) {},
+			setupLimiter:   func(_ *httpx.TokenBucketLimiter) {},
 			numRequests:    3,
 			waitBetween:    0,
 			wantAllowed:    2,
@@ -441,7 +441,7 @@ func TestRateLimitMiddleware_Execute(t *testing.T) {
 			t.Parallel()
 
 			callCount := 0
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				callCount++
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusOK)
@@ -488,7 +488,7 @@ func TestRateLimitMiddleware_Execute_429Response(t *testing.T) {
 		t.Parallel()
 
 		callCount := 0
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			callCount++
 			if callCount == 1 {
 				w.Header().Set("Retry-After", "1") // 1 second
@@ -526,7 +526,7 @@ func TestRateLimitMiddleware_Execute_429Response(t *testing.T) {
 		t.Parallel()
 
 		callCount := 0
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			callCount++
 			w.Header().Set("Retry-After", "60") // 60 seconds
 			w.WriteHeader(http.StatusTooManyRequests)
@@ -561,7 +561,7 @@ func TestRateLimitMiddleware_Execute_UpdatesFromHeaders(t *testing.T) {
 	t.Run("updates rate limiter from response headers", func(t *testing.T) {
 		t.Parallel()
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("X-RateLimit-Limit", "100")
 			w.Header().Set("X-RateLimit-Remaining", "99")
 			w.Header().Set("X-RateLimit-Reset", "1640000000")
@@ -601,7 +601,7 @@ func TestRateLimitMiddleware_Execute_PerHost(t *testing.T) {
 		t.Parallel()
 
 		server1Calls := 0
-		server1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			server1Calls++
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"host":"server1"}`))
@@ -609,7 +609,7 @@ func TestRateLimitMiddleware_Execute_PerHost(t *testing.T) {
 		defer server1.Close()
 
 		server2Calls := 0
-		server2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			server2Calls++
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"host":"server2"}`))
@@ -656,7 +656,7 @@ func TestRateLimitMiddleware_Execute_ContextTimeout(t *testing.T) {
 	t.Run("returns error when rate limit wait exceeds MaxWaitDuration", func(t *testing.T) {
 		t.Parallel()
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"status":"ok"}`))
@@ -719,7 +719,7 @@ func TestRateLimitMiddleware_Integration(t *testing.T) {
 		requestTimes := []time.Time{}
 		var mu sync.Mutex
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			mu.Lock()
 			requestTimes = append(requestTimes, time.Now())
 			mu.Unlock()
@@ -754,7 +754,7 @@ func TestRateLimitMiddleware_Integration(t *testing.T) {
 		t.Parallel()
 
 		callCount := 0
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			callCount++
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"success":true}`))
@@ -794,7 +794,7 @@ func TestRateLimitMiddleware_TokenRefill(t *testing.T) {
 		t.Parallel()
 
 		callCount := 0
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			callCount++
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)

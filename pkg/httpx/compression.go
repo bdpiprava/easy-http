@@ -219,6 +219,7 @@ func (m *CompressionMiddleware) Execute(ctx context.Context, req *http.Request, 
 			if err := m.compressRequest(req); err != nil {
 				// Log error but continue with uncompressed request
 				// Compression failure shouldn't break the request
+				_ = err
 			}
 		}
 	}

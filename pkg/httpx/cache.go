@@ -239,6 +239,7 @@ func (m *CacheMiddleware) Execute(ctx context.Context, req *http.Request, next M
 		if err := m.cacheResponse(cacheKey, resp); err != nil {
 			// Log error but don't fail the request
 			// In production, you might want to log this
+			_ = err
 		}
 	}
 

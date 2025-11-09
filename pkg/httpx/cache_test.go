@@ -1,8 +1,6 @@
 package httpx_test
 
 import (
-	"bytes"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -93,7 +91,7 @@ func TestInMemoryCache_Get(t *testing.T) {
 		},
 		{
 			name: "returns not found when key does not exist",
-			setupCache: func(cache *httpx.InMemoryCache) {
+			setupCache: func(_ *httpx.InMemoryCache) {
 				// Empty cache
 			},
 			key:           "nonexistent-key",
@@ -181,7 +179,7 @@ func TestInMemoryCache_Set(t *testing.T) {
 		{
 			name:    "sets new cache entry",
 			maxSize: 10,
-			setupCache: func(cache *httpx.InMemoryCache) {
+			setupCache: func(_ *httpx.InMemoryCache) {
 				// Empty cache
 			},
 			key:           "key1",
@@ -341,7 +339,7 @@ func TestInMemoryCache_Clear(t *testing.T) {
 		},
 		{
 			name: "clearing empty cache does not error",
-			setupCache: func(cache *httpx.InMemoryCache) {
+			setupCache: func(_ *httpx.InMemoryCache) {
 				// Empty cache
 			},
 			wantErr:  false,
@@ -530,7 +528,7 @@ func TestCacheMiddleware_Execute(t *testing.T) {
 			name: "caches GET request on first call",
 			setupServer: func() *httptest.Server {
 				callCount := 0
-				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					callCount++
 					w.Header().Set("Content-Type", "application/json")
 					w.Header().Set("Cache-Control", "max-age=3600")
@@ -549,7 +547,7 @@ func TestCacheMiddleware_Execute(t *testing.T) {
 		{
 			name: "does not cache POST requests",
 			setupServer: func() *httptest.Server {
-				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusOK)
 					_, _ = w.Write([]byte(`{"not_cached":true}`))
@@ -566,7 +564,7 @@ func TestCacheMiddleware_Execute(t *testing.T) {
 		{
 			name: "respects Cache-Control no-store directive",
 			setupServer: func() *httptest.Server {
-				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.Header().Set("Content-Type", "application/json")
 					w.Header().Set("Cache-Control", "no-store")
 					w.WriteHeader(http.StatusOK)
@@ -649,7 +647,7 @@ func TestCacheMiddleware_Integration(t *testing.T) {
 		t.Parallel()
 
 		serverCallCount := 0
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			serverCallCount++
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Cache-Control", "max-age=3600")
@@ -690,7 +688,7 @@ func TestCacheMiddleware_Integration(t *testing.T) {
 	t.Run("custom cache backend integration", func(t *testing.T) {
 		t.Parallel()
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Cache-Control", "max-age=3600")
 			w.WriteHeader(http.StatusOK)
@@ -728,7 +726,7 @@ func TestCacheMiddleware_CacheExpiration(t *testing.T) {
 	t.Run("expires cache entries based on Cache-Control max-age", func(t *testing.T) {
 		t.Parallel()
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Cache-Control", "max-age=1") // 1 second TTL
 			w.WriteHeader(http.StatusOK)
@@ -851,7 +849,7 @@ func TestCacheMiddleware_SkipCache(t *testing.T) {
 		t.Parallel()
 
 		serverCallCount := 0
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			serverCallCount++
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Cache-Control", "max-age=3600")
@@ -907,7 +905,7 @@ func TestCacheResponse_BodyPreservation(t *testing.T) {
 		t.Parallel()
 
 		testBody := []byte(`{"test":"body","data":"preserved"}`)
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Cache-Control", "max-age=3600")
 			w.WriteHeader(http.StatusOK)
@@ -943,7 +941,7 @@ func TestCacheMiddleware_ErrorHandling(t *testing.T) {
 		t.Parallel()
 
 		serverCallCount := 0
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			serverCallCount++
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusInternalServerError)
@@ -988,21 +986,4 @@ func TestCacheMiddleware_ErrorHandling(t *testing.T) {
 		// Should return network error
 		assert.Error(t, err)
 	})
-}
-
-// Helper function to create a test response
-func createTestResponse(statusCode int, body []byte, headers http.Header) *http.Response {
-	if headers == nil {
-		headers = http.Header{}
-	}
-	return &http.Response{
-		StatusCode:    statusCode,
-		Status:        http.StatusText(statusCode),
-		Header:        headers,
-		Body:          io.NopCloser(bytes.NewReader(body)),
-		ContentLength: int64(len(body)),
-		Proto:         "HTTP/1.1",
-		ProtoMajor:    1,
-		ProtoMinor:    1,
-	}
 }

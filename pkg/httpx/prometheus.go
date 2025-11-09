@@ -156,13 +156,16 @@ func (c *PrometheusCollector) IncrementErrors(method, rawURL string, statusCode 
 	c.inFlightRequests.Dec()
 
 	// Determine error type
-	errorType := "unknown"
-	if statusCode == 0 {
+	var errorType string
+	switch {
+	case statusCode == 0:
 		errorType = "network"
-	} else if statusCode >= 400 && statusCode < 500 {
+	case statusCode >= 400 && statusCode < 500:
 		errorType = "client_error"
-	} else if statusCode >= 500 {
+	case statusCode >= 500:
 		errorType = "server_error"
+	default:
+		errorType = "unknown"
 	}
 
 	errorLabels := prometheus.Labels{"error_type": errorType}
