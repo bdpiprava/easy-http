@@ -331,3 +331,20 @@ func WithClientConservativeCircuitBreaker() ClientConfigOption {
 		c.CircuitBreakerConfig = &config
 	}
 }
+
+// WithClientCache enables HTTP caching with the specified configuration
+func WithClientCache(config CacheConfig) ClientConfigOption {
+	return func(c *ClientConfig) {
+		cacheMiddleware := NewCacheMiddleware(config)
+		c.Middlewares = append(c.Middlewares, cacheMiddleware)
+	}
+}
+
+// WithClientDefaultCache enables HTTP caching with default settings
+func WithClientDefaultCache() ClientConfigOption {
+	return WithClientCache(CacheConfig{
+		Backend:      NewInMemoryCache(1000),
+		DefaultTTL:   5 * time.Minute,
+		MaxSizeBytes: 10 * 1024 * 1024, // 10MB
+	})
+}

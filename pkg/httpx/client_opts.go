@@ -27,6 +27,11 @@ type ClientConfig struct {
 	DefaultHeaders   http.Header // Default headers applied to all requests
 	DefaultBasicAuth BasicAuth   // Default basic auth for all requests
 
+	// Proxy configuration
+	ProxyURL  string   // HTTP/HTTPS proxy URL (e.g., "http://proxy.company.com:8080")
+	ProxyAuth BasicAuth // Proxy authentication credentials
+	NoProxy   []string // Domains to bypass proxy (e.g., "localhost", "*.internal.com")
+
 	// Retry configuration
 	RetryPolicy *RetryPolicy // Optional retry policy for all requests
 
