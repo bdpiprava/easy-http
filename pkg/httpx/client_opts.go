@@ -28,15 +28,19 @@ type ClientConfig struct {
 	DefaultBasicAuth BasicAuth   // Default basic auth for all requests
 
 	// Proxy configuration
-	ProxyURL  string   // HTTP/HTTPS proxy URL (e.g., "http://proxy.company.com:8080")
+	ProxyURL  string    // HTTP/HTTPS proxy URL (e.g., "http://proxy.company.com:8080")
 	ProxyAuth BasicAuth // Proxy authentication credentials
-	NoProxy   []string // Domains to bypass proxy (e.g., "localhost", "*.internal.com")
+	NoProxy   []string  // Domains to bypass proxy (e.g., "localhost", "*.internal.com")
 
 	// Retry configuration
 	RetryPolicy *RetryPolicy // Optional retry policy for all requests
 
 	// Circuit breaker configuration
 	CircuitBreakerConfig *CircuitBreakerConfig // Optional circuit breaker for fault tolerance
+
+	// Cookie management
+	CookieJar        http.CookieJar    // Automatic cookie jar for managing cookies across requests
+	CookieJarManager *CookieJarManager // Optional cookie jar manager with persistence utilities
 
 	// Middleware configuration
 	Middlewares []Middleware // Ordered list of middlewares to apply to all requests
@@ -72,9 +76,11 @@ type RequestConfig struct {
 	BasicAuth   BasicAuth   // Basic auth for this request (overrides client default)
 
 	// Request behavior
-	Context   context.Context // Request context for cancellation/timeout
-	Timeout   time.Duration   // Request timeout (overrides client default)
-	Streaming bool            // If true, response body will not be read into memory
+	Context        context.Context // Request context for cancellation/timeout
+	Timeout        time.Duration   // Request timeout (overrides client default)
+	Streaming      bool            // If true, response body will not be read into memory
+	Cookies        []*http.Cookie  // Cookies to add to this specific request
+	DisableCookies bool            // If true, disables cookie jar for this specific request
 
 	// Internal
 	Error error // Stores errors from RequestOptions that can't return errors directly
@@ -83,17 +89,19 @@ type RequestConfig struct {
 // RequestOptions is a struct that holds the options for the request
 // Deprecated: Use RequestConfig for new code. Maintained for backward compatibility.
 type RequestOptions struct {
-	Method      string
-	BaseURL     string
-	Headers     http.Header
-	QueryParams url.Values
-	Body        io.Reader
-	BasicAuth   BasicAuth
-	Path        string
-	Timeout     time.Duration
-	Context     context.Context
-	Error       error // Stores errors from RequestOptions that can't return errors directly
-	Streaming   bool  // If true, response body will not be read into memory
+	Method         string
+	BaseURL        string
+	Headers        http.Header
+	QueryParams    url.Values
+	Body           io.Reader
+	BasicAuth      BasicAuth
+	Path           string
+	Timeout        time.Duration
+	Context        context.Context
+	Error          error          // Stores errors from RequestOptions that can't return errors directly
+	Streaming      bool           // If true, response body will not be read into memory
+	Cookies        []*http.Cookie // Cookies to add to this specific request
+	DisableCookies bool           // If true, disables cookie jar for this specific request
 }
 
 // ClientConfigOption is a function that modifies ClientConfig
@@ -120,17 +128,19 @@ func (c ClientConfig) ToClientOptions() ClientOptions {
 // ToRequestOptions converts RequestConfig to RequestOptions for backward compatibility
 func (r RequestConfig) ToRequestOptions() RequestOptions {
 	return RequestOptions{
-		Method:      r.Method,
-		BaseURL:     r.BaseURL,
-		Headers:     r.Headers,
-		QueryParams: r.QueryParams,
-		Body:        r.Body,
-		BasicAuth:   r.BasicAuth,
-		Path:        r.Path,
-		Timeout:     r.Timeout,
-		Context:     r.Context,
-		Error:       r.Error,
-		Streaming:   r.Streaming,
+		Method:         r.Method,
+		BaseURL:        r.BaseURL,
+		Headers:        r.Headers,
+		QueryParams:    r.QueryParams,
+		Body:           r.Body,
+		BasicAuth:      r.BasicAuth,
+		Path:           r.Path,
+		Timeout:        r.Timeout,
+		Context:        r.Context,
+		Error:          r.Error,
+		Streaming:      r.Streaming,
+		Cookies:        r.Cookies,
+		DisableCookies: r.DisableCookies,
 	}
 }
 

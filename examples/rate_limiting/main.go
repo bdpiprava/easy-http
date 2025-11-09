@@ -38,7 +38,7 @@ func example1() {
 		requestCount++
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(fmt.Sprintf(`{"request":%d}`, requestCount)))
+		_, _ = fmt.Fprintf(w, `{"request":%d}`, requestCount)
 	}))
 	defer server.Close()
 
@@ -85,8 +85,8 @@ func example2() {
 			Strategy:        httpx.RateLimitTokenBucket,
 			RequestsPerSec:  2.0,
 			BurstSize:       3,
-			WaitOnLimit:     true,                 // Wait when limit reached
-			MaxWaitDuration: 2 * time.Second,      // Max wait 2 seconds
+			WaitOnLimit:     true,            // Wait when limit reached
+			MaxWaitDuration: 2 * time.Second, // Max wait 2 seconds
 		}),
 	)
 
@@ -147,7 +147,7 @@ func example3() {
 
 	var wg sync.WaitGroup
 	// Server 1 requests
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
@@ -164,7 +164,7 @@ func example3() {
 	}
 
 	// Server 2 requests
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()

@@ -34,11 +34,11 @@ func TestNewPrometheusCollector(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name              string
-		config            httpx.PrometheusConfig
-		wantErr           bool
-		wantNamespace     string
-		wantSubsystem     string
+		name          string
+		config        httpx.PrometheusConfig
+		wantErr       bool
+		wantNamespace string
+		wantSubsystem string
 	}{
 		{
 			name: "creates collector with full configuration",
@@ -145,11 +145,11 @@ func TestPrometheusCollector_IncrementRequests(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name              string
-		config            httpx.PrometheusConfig
-		method            string
-		url               string
-		callCount         int
+		name      string
+		config    httpx.PrometheusConfig
+		method    string
+		url       string
+		callCount int
 	}{
 		{
 			name: "increments request counter with all labels",
@@ -220,7 +220,7 @@ func TestPrometheusCollector_IncrementRequests(t *testing.T) {
 			subject, err := httpx.NewPrometheusCollector(tc.config)
 			require.NoError(t, err)
 
-			for i := 0; i < tc.callCount; i++ {
+			for range tc.callCount {
 				subject.IncrementRequests(tc.method, tc.url)
 			}
 

@@ -243,6 +243,38 @@ func WithStreaming() RequestOption {
 	}
 }
 
+// WithCookie adds a single cookie to the request
+func WithCookie(name, value string) RequestOption {
+	return func(c *RequestOptions) {
+		cookie := &http.Cookie{
+			Name:  name,
+			Value: value,
+		}
+		if c.Cookies == nil {
+			c.Cookies = []*http.Cookie{}
+		}
+		c.Cookies = append(c.Cookies, cookie)
+	}
+}
+
+// WithCookies adds multiple cookies to the request
+func WithCookies(cookies []*http.Cookie) RequestOption {
+	return func(c *RequestOptions) {
+		if c.Cookies == nil {
+			c.Cookies = []*http.Cookie{}
+		}
+		c.Cookies = append(c.Cookies, cookies...)
+	}
+}
+
+// WithoutCookies disables the cookie jar for this specific request
+// Even if the client has a cookie jar configured, it won't be used for this request
+func WithoutCookies() RequestOption {
+	return func(c *RequestOptions) {
+		c.DisableCookies = true
+	}
+}
+
 // GET is a function that sends a GET request
 func GET[T any](opts ...RequestOption) (*Response, error) {
 	req := NewRequest(http.MethodGet, opts...)
@@ -392,6 +424,15 @@ func buildOptsFromConfig(clientConfig ClientConfig, request *Request) RequestOpt
 			requestConfig.Error = tempOpts.Error
 		}
 		requestConfig.Streaming = tempOpts.Streaming
+		if len(tempOpts.Cookies) > 0 {
+			if requestConfig.Cookies == nil {
+				requestConfig.Cookies = make([]*http.Cookie, 0)
+			}
+			requestConfig.Cookies = append(requestConfig.Cookies, tempOpts.Cookies...)
+		}
+		if tempOpts.DisableCookies {
+			requestConfig.DisableCookies = true
+		}
 	}
 
 	// Merge with client defaults

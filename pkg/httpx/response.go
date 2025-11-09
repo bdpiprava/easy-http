@@ -13,13 +13,14 @@ import (
 
 // Response is a response struct that holds the status code, body and raw body
 type Response struct {
-	Status      string
-	header      http.Header
-	StatusCode  int
-	Body        any
-	RawBody     []byte
-	StreamBody  io.ReadCloser // Only set when streaming is enabled
-	IsStreaming bool          // Indicates if this response is in streaming mode
+	Status       string
+	header       http.Header
+	StatusCode   int
+	Body         any
+	RawBody      []byte
+	StreamBody   io.ReadCloser  // Only set when streaming is enabled
+	IsStreaming  bool           // Indicates if this response is in streaming mode
+	httpResponse *http.Response // Original HTTP response for cookie access
 }
 
 // newResponse is a function that creates a new response
@@ -29,10 +30,11 @@ func newResponse(httpResp *http.Response, bType any, streaming bool) (*Response,
 	}
 
 	response := &Response{
-		header:      httpResp.Header,
-		Status:      httpResp.Status,
-		StatusCode:  httpResp.StatusCode,
-		IsStreaming: streaming,
+		header:       httpResp.Header,
+		Status:       httpResp.Status,
+		StatusCode:   httpResp.StatusCode,
+		IsStreaming:  streaming,
+		httpResponse: httpResp,
 	}
 
 	// In streaming mode, don't read the body into memory
@@ -234,4 +236,29 @@ func (r *Response) GetHeader(name string) string {
 // HasHeader returns true if the response contains the specified header
 func (r *Response) HasHeader(name string) bool {
 	return r.Header().Get(name) != ""
+}
+
+// Cookie access helpers
+
+// GetCookie returns a specific cookie from the response by name
+func (r *Response) GetCookie(name string) *http.Cookie {
+	for _, cookie := range r.GetCookies() {
+		if cookie.Name == name {
+			return cookie
+		}
+	}
+	return nil
+}
+
+// GetCookies returns all cookies set in the response
+func (r *Response) GetCookies() []*http.Cookie {
+	if r.httpResponse == nil {
+		return nil
+	}
+	return r.httpResponse.Cookies()
+}
+
+// HasCookie checks if a specific cookie exists in the response
+func (r *Response) HasCookie(name string) bool {
+	return r.GetCookie(name) != nil
 }

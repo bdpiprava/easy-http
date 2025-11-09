@@ -55,7 +55,7 @@ func example1() {
 	)
 
 	// Make some requests to generate metrics
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		req := httpx.NewRequest(http.MethodGet, httpx.WithPath("/api/data"))
 		_, err := client.Execute(*req, map[string]any{})
 		if err != nil {
@@ -84,13 +84,13 @@ func example2() {
 	client := httpx.NewClientWithConfig(
 		httpx.WithClientDefaultBaseURL(server.URL),
 		httpx.WithClientPrometheusMetrics(httpx.PrometheusConfig{
-			Namespace:          "myapp",               // Prefix all metrics with "myapp_"
-			Subsystem:          "api_client",          // Use "api_client" as subsystem
-			Registry:           registry,              // Use custom registry
-			DurationBuckets:    []float64{0.001, 0.01, 0.1, 1, 10}, // Custom latency buckets
+			Namespace:          "myapp",                             // Prefix all metrics with "myapp_"
+			Subsystem:          "api_client",                        // Use "api_client" as subsystem
+			Registry:           registry,                            // Use custom registry
+			DurationBuckets:    []float64{0.001, 0.01, 0.1, 1, 10},  // Custom latency buckets
 			SizeBuckets:        []float64{100, 1000, 10000, 100000}, // Custom size buckets
-			IncludeHostLabel:   true,                  // Include host in labels
-			IncludeMethodLabel: true,                  // Include HTTP method in labels
+			IncludeHostLabel:   true,                                // Include host in labels
+			IncludeMethodLabel: true,                                // Include HTTP method in labels
 		}),
 	)
 
@@ -238,21 +238,21 @@ func example5() {
 	fmt.Println("\nGenerating traffic with various patterns:")
 
 	// Successful fast requests
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		req := httpx.NewRequest(http.MethodGet, httpx.WithPath("/api/data"))
 		_, _ = client.Execute(*req, map[string]any{})
 	}
 	fmt.Println("  ✓ Made 10 fast successful requests")
 
 	// Slow requests
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		req := httpx.NewRequest(http.MethodGet, httpx.WithPath("/slow"))
 		_, _ = client.Execute(*req, map[string]any{})
 	}
 	fmt.Println("  ✓ Made 3 slow requests (100ms each)")
 
 	// Error requests
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		req := httpx.NewRequest(http.MethodPost, httpx.WithPath("/error"))
 		_, _ = client.Execute(*req, map[string]any{})
 	}

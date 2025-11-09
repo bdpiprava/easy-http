@@ -143,9 +143,9 @@ func example3() {
 	client := httpx.NewClientWithConfig(
 		httpx.WithClientDefaultBaseURL(server.URL),
 		httpx.WithClientCompression(httpx.CompressionConfig{
-			EnableRequest:      true,                          // Compress requests
-			EnableResponse:     false,                         // Don't handle compressed responses
-			MinSizeBytes:       1024,                          // 1KB threshold
+			EnableRequest:      true,  // Compress requests
+			EnableResponse:     false, // Don't handle compressed responses
+			MinSizeBytes:       1024,  // 1KB threshold
 			CompressibleTypes:  []string{"application/json"},
 			PreferredEncodings: []string{"gzip"},
 		}),

@@ -76,10 +76,20 @@ func NewClientWithConfig(opts ...ClientConfigOption) *Client {
 		}
 	}
 
+	// Create HTTP client with timeout and optional cookie jar
+	httpClient := &http.Client{
+		Timeout: config.Timeout,
+	}
+
+	// Wire up cookie jar if configured
+	if config.CookieJar != nil {
+		httpClient.Jar = config.CookieJar
+	}
+
 	return &Client{
 		config:        config,
 		clientOptions: config.ToClientOptions(), // For backward compatibility
-		client:        &http.Client{Timeout: config.Timeout},
+		client:        httpClient,
 	}
 }
 
@@ -411,4 +421,29 @@ func WithClientTracing(config TracingConfig) ClientConfigOption {
 // WithClientDefaultTracing enables OpenTelemetry tracing with default settings
 func WithClientDefaultTracing() ClientConfigOption {
 	return WithClientTracing(TracingConfig{})
+}
+
+// WithClientCookieJar enables automatic cookie management with a standard cookie jar
+func WithClientCookieJar() ClientConfigOption {
+	return func(c *ClientConfig) {
+		manager, err := NewCookieJarManager()
+		if err != nil {
+			// Log error but don't fail client creation
+			return
+		}
+		c.CookieJar = manager.Jar()
+		c.CookieJarManager = manager
+	}
+}
+
+// WithClientCookieJarManager enables cookie management with a custom cookie jar manager
+// This allows for advanced cookie persistence and management utilities
+func WithClientCookieJarManager(manager *CookieJarManager) ClientConfigOption {
+	return func(c *ClientConfig) {
+		if manager == nil {
+			return
+		}
+		c.CookieJar = manager.Jar()
+		c.CookieJarManager = manager
+	}
 }

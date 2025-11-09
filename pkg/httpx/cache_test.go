@@ -19,28 +19,28 @@ func TestNewInMemoryCache(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name         string
-		maxSize      int
-		wantMaxSize  int
-		wantNotNil   bool
+		name        string
+		maxSize     int
+		wantMaxSize int
+		wantNotNil  bool
 	}{
 		{
-			name:         "creates cache with positive max size",
-			maxSize:      100,
-			wantMaxSize:  100,
-			wantNotNil:   true,
+			name:        "creates cache with positive max size",
+			maxSize:     100,
+			wantMaxSize: 100,
+			wantNotNil:  true,
 		},
 		{
-			name:         "creates cache with default size when zero",
-			maxSize:      0,
-			wantMaxSize:  1000,
-			wantNotNil:   true,
+			name:        "creates cache with default size when zero",
+			maxSize:     0,
+			wantMaxSize: 1000,
+			wantNotNil:  true,
 		},
 		{
-			name:         "creates cache with default size when negative",
-			maxSize:      -10,
-			wantMaxSize:  1000,
-			wantNotNil:   true,
+			name:        "creates cache with default size when negative",
+			maxSize:     -10,
+			wantMaxSize: 1000,
+			wantNotNil:  true,
 		},
 	}
 
@@ -72,13 +72,13 @@ func TestInMemoryCache_Get(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		setupCache     func(*httpx.InMemoryCache)
-		key            string
-		wantResponse   *httpx.CachedResponse
-		wantFound      bool
-		wantStatsHits  int64
-		wantStatsMiss  int64
+		name          string
+		setupCache    func(*httpx.InMemoryCache)
+		key           string
+		wantResponse  *httpx.CachedResponse
+		wantFound     bool
+		wantStatsHits int64
+		wantStatsMiss int64
 	}{
 		{
 			name: "returns cached response when key exists and not expired",
@@ -423,7 +423,7 @@ func TestInMemoryCache_Concurrency(t *testing.T) {
 		iterations := 100
 
 		// Concurrent writes
-		for i := 0; i < iterations; i++ {
+		for i := range iterations {
 			wg.Add(1)
 			go func(idx int) {
 				defer wg.Done()
@@ -438,7 +438,7 @@ func TestInMemoryCache_Concurrency(t *testing.T) {
 		}
 
 		// Concurrent reads
-		for i := 0; i < iterations; i++ {
+		for i := range iterations {
 			wg.Add(1)
 			go func(idx int) {
 				defer wg.Done()
@@ -476,7 +476,7 @@ func TestNewCacheMiddleware(t *testing.T) {
 			wantMethodsCount:  1,
 		},
 		{
-			name: "creates middleware with defaults when not specified",
+			name:   "creates middleware with defaults when not specified",
 			config: httpx.CacheConfig{
 				// Empty config
 			},
@@ -631,7 +631,7 @@ func TestCacheMiddleware_Execute(t *testing.T) {
 			)
 
 			// Execute request(s)
-			for i := 0; i < tc.executeCount; i++ {
+			for range tc.executeCount {
 				req := httpx.NewRequest(tc.requestMethod, httpx.WithPath(tc.requestPath))
 				response, err := client.Execute(*req, map[string]any{})
 

@@ -38,22 +38,22 @@ func TestNewGzipCompressor(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name      string
-		level     int
+		name       string
+		level      int
 		wantNotNil bool
 	}{
 		{
-			name:      "creates compressor with positive level",
+			name:       "creates compressor with positive level",
 			level:      gzip.BestCompression,
 			wantNotNil: true,
 		},
 		{
-			name:      "creates compressor with default level when zero",
+			name:       "creates compressor with default level when zero",
 			level:      0,
 			wantNotNil: true,
 		},
 		{
-			name:      "creates compressor with custom level",
+			name:       "creates compressor with custom level",
 			level:      5,
 			wantNotNil: true,
 		},
@@ -208,7 +208,7 @@ func TestGzipCompressor_Concurrency(t *testing.T) {
 		var wg sync.WaitGroup
 		numGoroutines := 100
 
-		for i := 0; i < numGoroutines; i++ {
+		for range numGoroutines {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -228,22 +228,22 @@ func TestNewDeflateCompressor(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name      string
-		level     int
+		name       string
+		level      int
 		wantNotNil bool
 	}{
 		{
-			name:      "creates compressor with positive level",
+			name:       "creates compressor with positive level",
 			level:      zlib.BestCompression,
 			wantNotNil: true,
 		},
 		{
-			name:      "creates compressor with default level when zero",
+			name:       "creates compressor with default level when zero",
 			level:      0,
 			wantNotNil: true,
 		},
 		{
-			name:      "creates compressor with custom level",
+			name:       "creates compressor with custom level",
 			level:      6,
 			wantNotNil: true,
 		},
@@ -386,12 +386,12 @@ func TestNewCompressionMiddleware(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name              string
-		config            httpx.CompressionConfig
-		wantMinSize       int64
-		wantLevel         int
-		wantEncodingsLen  int
-		wantTypesLen      int
+		name             string
+		config           httpx.CompressionConfig
+		wantMinSize      int64
+		wantLevel        int
+		wantEncodingsLen int
+		wantTypesLen     int
 	}{
 		{
 			name: "creates middleware with custom config",
@@ -409,7 +409,7 @@ func TestNewCompressionMiddleware(t *testing.T) {
 			wantTypesLen:     1,
 		},
 		{
-			name: "applies defaults when not specified",
+			name:   "applies defaults when not specified",
 			config: httpx.CompressionConfig{
 				// Empty config
 			},
@@ -450,11 +450,11 @@ func TestCompressionMiddleware_Execute_AcceptEncodingHeader(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name                string
-		config              httpx.CompressionConfig
-		existingHeader      string
-		wantAcceptEncoding  string
-		wantHeaderSet       bool
+		name               string
+		config             httpx.CompressionConfig
+		existingHeader     string
+		wantAcceptEncoding string
+		wantHeaderSet      bool
 	}{
 		{
 			name: "adds Accept-Encoding header when response decompression enabled",
@@ -532,11 +532,11 @@ func TestCompressionMiddleware_Execute_RequestCompression(t *testing.T) {
 	largeJSON := `{"data":"` + strings.Repeat("x", 2000) + `"}`
 
 	tests := []struct {
-		name               string
-		config             httpx.CompressionConfig
-		requestBody        string
-		contentType        string
-		wantCompressed     bool
+		name           string
+		config         httpx.CompressionConfig
+		requestBody    string
+		contentType    string
+		wantCompressed bool
 	}{
 		{
 			name: "compresses large JSON request",
@@ -629,52 +629,52 @@ func TestCompressionMiddleware_Execute_ResponseDecompression(t *testing.T) {
 	testData := []byte(`{"message":"This is compressed response data","value":12345}`)
 
 	tests := []struct {
-		name            string
-		config          httpx.CompressionConfig
-		serverEncoding  string
-		compressData    bool
+		name             string
+		config           httpx.CompressionConfig
+		serverEncoding   string
+		compressData     bool
 		wantDecompressed bool
-		wantErr         bool
+		wantErr          bool
 	}{
 		{
 			name: "decompresses gzip response",
 			config: httpx.CompressionConfig{
 				EnableResponse: true,
 			},
-			serverEncoding:  "gzip",
-			compressData:    true,
+			serverEncoding:   "gzip",
+			compressData:     true,
 			wantDecompressed: true,
-			wantErr:         false,
+			wantErr:          false,
 		},
 		{
 			name: "decompresses deflate response",
 			config: httpx.CompressionConfig{
 				EnableResponse: true,
 			},
-			serverEncoding:  "deflate",
-			compressData:    true,
+			serverEncoding:   "deflate",
+			compressData:     true,
 			wantDecompressed: true,
-			wantErr:         false,
+			wantErr:          false,
 		},
 		{
 			name: "handles unsupported encoding gracefully",
 			config: httpx.CompressionConfig{
 				EnableResponse: true,
 			},
-			serverEncoding:  "br",
-			compressData:    false,
+			serverEncoding:   "br",
+			compressData:     false,
 			wantDecompressed: false,
-			wantErr:         false,
+			wantErr:          false,
 		},
 		{
 			name: "returns error for invalid compressed data",
 			config: httpx.CompressionConfig{
 				EnableResponse: true,
 			},
-			serverEncoding:  "gzip",
-			compressData:    false, // Send uncompressed but claim gzip
+			serverEncoding:   "gzip",
+			compressData:     false, // Send uncompressed but claim gzip
 			wantDecompressed: false,
-			wantErr:         true,
+			wantErr:          true,
 		},
 	}
 
@@ -685,13 +685,14 @@ func TestCompressionMiddleware_Execute_ResponseDecompression(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				var dataToSend []byte
 				if tc.compressData {
-					if tc.serverEncoding == "gzip" {
+					switch tc.serverEncoding {
+					case "gzip":
 						buf := bytes.NewBuffer(nil)
 						gw := gzip.NewWriter(buf)
 						_, _ = gw.Write(testData)
 						_ = gw.Close()
 						dataToSend = buf.Bytes()
-					} else if tc.serverEncoding == "deflate" {
+					case "deflate":
 						buf := bytes.NewBuffer(nil)
 						zw := zlib.NewWriter(buf)
 						_, _ = zw.Write(testData)

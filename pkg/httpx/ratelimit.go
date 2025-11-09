@@ -2,6 +2,7 @@ package httpx
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"net/http"
@@ -201,7 +202,7 @@ func (m *RateLimitMiddleware) Execute(ctx context.Context, req *http.Request, ne
 	}
 
 	if err := limiter.Allow(waitCtx); err != nil {
-		if err == context.DeadlineExceeded {
+		if errors.Is(err, context.DeadlineExceeded) {
 			return nil, &HTTPError{
 				Type:    ErrorTypeMiddleware,
 				Message: fmt.Sprintf("rate limit wait timeout exceeded: %v", m.config.MaxWaitDuration),

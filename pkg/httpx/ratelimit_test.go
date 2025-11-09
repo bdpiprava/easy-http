@@ -20,11 +20,11 @@ func TestNewTokenBucketLimiter(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name            string
-		requestsPerSec  float64
-		burstSize       int
-		wantBurstSize   int
-		wantNotNil      bool
+		name           string
+		requestsPerSec float64
+		burstSize      int
+		wantBurstSize  int
+		wantNotNil     bool
 	}{
 		{
 			name:           "creates limiter with positive values",
@@ -102,14 +102,14 @@ func TestTokenBucketLimiter_Allow(t *testing.T) {
 			setupLimiter: func(l *httpx.TokenBucketLimiter) {
 				// Consume all tokens first
 				ctx := context.Background()
-				for i := 0; i < 5; i++ {
+				for range 5 {
 					_ = l.Allow(ctx)
 				}
 			},
-			numRequests:  2,
-			waitBetween:  150 * time.Millisecond, // Allow time for refill
-			wantAllowed:  2,
-			wantBlocked:  0,
+			numRequests: 2,
+			waitBetween: 150 * time.Millisecond, // Allow time for refill
+			wantAllowed: 2,
+			wantBlocked: 0,
 		},
 	}
 
@@ -123,7 +123,7 @@ func TestTokenBucketLimiter_Allow(t *testing.T) {
 			allowed := 0
 			blocked := 0
 
-			for i := 0; i < tc.numRequests; i++ {
+			for i := range tc.numRequests {
 				ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 				err := subject.Allow(ctx)
 				cancel()
@@ -305,7 +305,7 @@ func TestTokenBucketLimiter_Concurrency(t *testing.T) {
 
 		numGoroutines := 100
 
-		for i := 0; i < numGoroutines; i++ {
+		for range numGoroutines {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -333,10 +333,10 @@ func TestNewRateLimitMiddleware(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name            string
-		config          httpx.RateLimitConfig
-		wantStrategy    httpx.RateLimitStrategy
-		wantMaxWait     time.Duration
+		name         string
+		config       httpx.RateLimitConfig
+		wantStrategy httpx.RateLimitStrategy
+		wantMaxWait  time.Duration
 	}{
 		{
 			name: "creates middleware with custom config",
@@ -402,12 +402,12 @@ func TestRateLimitMiddleware_Execute(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name            string
-		config          httpx.RateLimitConfig
-		numRequests     int
-		requestDelay    time.Duration
-		wantSuccessMin  int
-		wantErrors      bool
+		name           string
+		config         httpx.RateLimitConfig
+		numRequests    int
+		requestDelay   time.Duration
+		wantSuccessMin int
+		wantErrors     bool
 	}{
 		{
 			name: "allows requests within rate limit",
@@ -458,7 +458,7 @@ func TestRateLimitMiddleware_Execute(t *testing.T) {
 			successCount := 0
 			errorCount := 0
 
-			for i := 0; i < tc.numRequests; i++ {
+			for range tc.numRequests {
 				req := httpx.NewRequest(http.MethodGet, httpx.WithPath("/test"))
 				_, err := client.Execute(*req, map[string]any{})
 
@@ -628,7 +628,7 @@ func TestRateLimitMiddleware_Execute_PerHost(t *testing.T) {
 		)
 
 		// Make 2 requests to server1 (should succeed)
-		for i := 0; i < 2; i++ {
+		for range 2 {
 			req := httpx.NewRequest(http.MethodGet,
 				httpx.WithBaseURL(server1.URL),
 				httpx.WithPath("/test"))
@@ -637,7 +637,7 @@ func TestRateLimitMiddleware_Execute_PerHost(t *testing.T) {
 		}
 
 		// Make 2 requests to server2 (should also succeed - different host)
-		for i := 0; i < 2; i++ {
+		for range 2 {
 			req := httpx.NewRequest(http.MethodGet,
 				httpx.WithBaseURL(server2.URL),
 				httpx.WithPath("/test"))
@@ -736,7 +736,7 @@ func TestRateLimitMiddleware_Integration(t *testing.T) {
 		)
 
 		// Make 5 requests rapidly
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			req := httpx.NewRequest(http.MethodGet, httpx.WithPath("/test"))
 			resp, err := client.Execute(*req, map[string]any{})
 			require.NoError(t, err)
@@ -774,7 +774,7 @@ func TestRateLimitMiddleware_Integration(t *testing.T) {
 
 		// Make 4 requests - only 2 should succeed (burst limit)
 		successCount := 0
-		for i := 0; i < 4; i++ {
+		for range 4 {
 			req := httpx.NewRequest(http.MethodGet, httpx.WithPath("/test"))
 			_, err := client.Execute(*req, map[string]any{})
 			if err == nil {
@@ -814,7 +814,7 @@ func TestRateLimitMiddleware_TokenRefill(t *testing.T) {
 		)
 
 		// Use burst (2 requests)
-		for i := 0; i < 2; i++ {
+		for range 2 {
 			req := httpx.NewRequest(http.MethodGet, httpx.WithPath("/test"))
 			_, err := client.Execute(*req, map[string]any{})
 			require.NoError(t, err)
