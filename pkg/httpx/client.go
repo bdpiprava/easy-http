@@ -348,3 +348,22 @@ func WithClientDefaultCache() ClientConfigOption {
 		MaxSizeBytes: 10 * 1024 * 1024, // 10MB
 	})
 }
+
+// WithClientRateLimit adds rate limiting to all requests
+func WithClientRateLimit(config RateLimitConfig) ClientConfigOption {
+	return func(c *ClientConfig) {
+		rateLimitMiddleware := NewRateLimitMiddleware(config)
+		c.Middlewares = append(c.Middlewares, rateLimitMiddleware)
+	}
+}
+
+// WithClientDefaultRateLimit adds default rate limiting (10 req/sec with burst of 20)
+func WithClientDefaultRateLimit() ClientConfigOption {
+	return WithClientRateLimit(RateLimitConfig{
+		Strategy:        RateLimitTokenBucket,
+		RequestsPerSec:  10,
+		BurstSize:       20,
+		WaitOnLimit:     true,
+		MaxWaitDuration: 30 * time.Second,
+	})
+}
