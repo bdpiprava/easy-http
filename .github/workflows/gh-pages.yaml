@@ -1,0 +1,73 @@
+name: "Build and Deploy Documentation"
+
+on:
+  push:
+    branches:
+      - master
+      - main
+
+jobs:
+  go-lint:
+    name: "GoLang Lint"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Run lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          go-version-file: go.mod
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Install dependencies
+        run: go get . && go install gotest.tools/gotestsum@latest
+
+      - name: Run unit tests
+        run: gotestsum --format testname
+
+  generate-docs:
+    name: Generate and Deploy Docs
+    needs: [unit-tests, go-lint]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Install dependencies
+        run: go get .
+
+      - name: Generate Documentation
+        run: make generate-doc
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: './build/docs'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

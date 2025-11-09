@@ -3,3 +3,4 @@ coverage.out
 vendor
 .vscode
 .claude
+build

@@ -1,0 +1,1436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Easy-HTTP - Simple & Powerful Go HTTP Client</title>
+    <meta name="description" content="A simple, powerful, and resilient HTTP client library for Go with built-in retry, circuit breaker, caching, and comprehensive testing utilities.">
+
+    <!-- CSS Dependencies -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- JS Dependencies -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+
+    <style>
+        :root {
+            --primary-color: #00ADD8;
+            --primary-hover: #00c8e8;
+            --secondary-color: #00758F;
+            --accent-color: #CE3262;
+            --success-color: #10b981;
+            --danger-color: #ef4444;
+            --warning-color: #f59e0b;
+            --dark-bg: #0d1117;
+            --dark-card: #161b22;
+            --dark-border: #30363d;
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --text-muted: #6e7681;
+            --code-bg: #0d1117;
+            --code-text: #e6edf3;
+            --gradient-primary: linear-gradient(135deg, #00ADD8 0%, #00758F 100%);
+            --gradient-accent: linear-gradient(135deg, #CE3262 0%, #ff6b9d 100%);
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5);
+            --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.6);
+            --topbar-height: 70px;
+        }
+
+        /* Light Theme */
+        [data-theme="light"] {
+            --dark-bg: #f8fafc;
+            --dark-card: #ffffff;
+            --dark-border: #e2e8f0;
+            --text-primary: #1e293b;
+            --text-secondary: #475569;
+            --text-muted: #64748b;
+            --code-bg: #f6f8fa;
+            --code-text: #24292f;
+        }
+
+        /* High Contrast Theme */
+        [data-theme="high-contrast"] {
+            --dark-bg: #000000;
+            --dark-card: #0a0a0a;
+            --dark-border: #ffffff;
+            --text-primary: #ffffff;
+            --text-secondary: #f0f0f0;
+            --text-muted: #d0d0d0;
+            --primary-color: #00d4ff;
+            --code-bg: #0a0a0a;
+            --code-text: #ffffff;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: var(--dark-bg);
+            color: var(--text-primary);
+            min-height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        /* Top Navigation Bar */
+        .top-navbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: var(--topbar-height);
+            background: var(--dark-card);
+            border-bottom: 1px solid var(--dark-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 2rem;
+            z-index: 1000;
+            box-shadow: var(--shadow-md);
+        }
+
+        .top-navbar-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .top-navbar-logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            text-decoration: none;
+            color: var(--text-primary);
+        }
+
+        .top-navbar-logo i {
+            font-size: 1.75rem;
+            color: var(--primary-color);
+        }
+
+        .top-navbar-title {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .top-navbar-title h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin: 0;
+            color: var(--text-primary);
+        }
+
+        .top-navbar-title p {
+            font-size: 0.875rem;
+            margin: 0;
+            color: var(--text-secondary);
+        }
+
+        .top-navbar-right {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .theme-selector {
+            display: flex;
+            gap: 0.5rem;
+            background: rgba(0, 173, 216, 0.1);
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            border: 1px solid var(--dark-border);
+        }
+
+        .theme-button {
+            background: var(--dark-card);
+            border: 1px solid var(--dark-border);
+            color: var(--text-secondary);
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .theme-button:hover {
+            background: rgba(0, 173, 216, 0.15);
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+            transform: translateY(-1px);
+        }
+
+        .theme-button.active {
+            background: var(--primary-color);
+            color: #ffffff;
+            border-color: var(--primary-color);
+            box-shadow: 0 2px 4px rgba(0, 173, 216, 0.3);
+        }
+
+        main {
+            position: fixed;
+            top: var(--topbar-height);
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Sidebar Styles */
+        .sidebar-container {
+            width: 320px;
+            height: 100%;
+            background: var(--dark-card);
+            border-right: 1px solid var(--dark-border);
+            display: flex;
+            flex-direction: column;
+            box-shadow: var(--shadow-lg);
+            transition: transform 0.3s ease;
+        }
+
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 1rem 0;
+        }
+
+        .sidebar-footer {
+            padding: 1.5rem;
+            border-top: 1px solid var(--dark-border);
+            background: var(--dark-card);
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+
+        .sidebar-footer-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            transition: all 0.2s;
+            border: 1px solid var(--dark-border);
+            background: rgba(0, 173, 216, 0.05);
+        }
+
+        .sidebar-footer-link:hover {
+            background: rgba(0, 173, 216, 0.15);
+            color: var(--primary-color);
+            border-color: var(--primary-color);
+            transform: translateY(-2px);
+        }
+
+        .sidebar-footer-link i {
+            font-size: 1.125rem;
+        }
+
+        /* Scrollbar Styles */
+        .sidebar-content::-webkit-scrollbar,
+        .main-content-body::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .sidebar-content::-webkit-scrollbar-track,
+        .main-content-body::-webkit-scrollbar-track {
+            background: var(--dark-bg);
+        }
+
+        .sidebar-content::-webkit-scrollbar-thumb,
+        .main-content-body::-webkit-scrollbar-thumb {
+            background: var(--dark-border);
+            border-radius: 4px;
+        }
+
+        .sidebar-content::-webkit-scrollbar-thumb:hover,
+        .main-content-body::-webkit-scrollbar-thumb:hover {
+            background: var(--secondary-color);
+        }
+
+        .sidebar-nav {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .sidebar-nav .nav-item {
+            margin: 0 0.75rem 0.5rem 1rem;
+        }
+
+        .sidebar-nav .nav-link {
+            display: flex;
+            align-items: center;
+            padding: 0.875rem 1rem;
+            color: var(--text-secondary);
+            text-decoration: none;
+            border-radius: 0.5rem;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            font-weight: 500;
+            border: 1px solid transparent;
+            font-size: 0.9rem;
+        }
+
+        .sidebar-nav .nav-link:hover {
+            background: rgba(0, 173, 216, 0.1);
+            color: var(--text-primary);
+            border-color: rgba(0, 173, 216, 0.2);
+            transform: translateX(4px);
+        }
+
+        .sidebar-nav .nav-link.active {
+            background: var(--primary-color);
+            color: white;
+            box-shadow: var(--shadow-md);
+        }
+
+        .sidebar-nav .nav-link.active:hover {
+            background: var(--primary-hover);
+            transform: translateX(0);
+        }
+
+        .sidebar-nav .nav-link i {
+            margin-right: 0.75rem;
+            width: 20px;
+            text-align: center;
+            font-size: 0.95rem;
+        }
+
+        /* Category Group Styles */
+        .nav-category {
+            margin: 0 0.75rem 0.5rem 1rem;
+        }
+
+        .category-header {
+            display: flex;
+            align-items: center;
+            padding: 0.875rem 1rem;
+            color: var(--text-primary);
+            background: rgba(100, 116, 139, 0.1);
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: 600;
+            border: 1px solid transparent;
+            user-select: none;
+        }
+
+        .category-header:hover {
+            background: rgba(100, 116, 139, 0.2);
+            border-color: rgba(100, 116, 139, 0.3);
+        }
+
+        .category-header i.category-icon {
+            margin-right: 0.75rem;
+            width: 20px;
+            text-align: center;
+            font-size: 1rem;
+        }
+
+        .category-header i.chevron {
+            margin-left: auto;
+            transition: transform 0.2s ease;
+            font-size: 0.875rem;
+        }
+
+        .category-header.expanded i.chevron {
+            transform: rotate(90deg);
+        }
+
+        .category-items {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+            padding-left: 0.5rem;
+        }
+
+        .category-items.expanded {
+            max-height: 3000px;
+        }
+
+        .category-items .nav-item {
+            margin: 0.5rem 0.75rem 0.5rem 0;
+        }
+
+        .category-items .nav-link {
+            padding-left: 2rem;
+            font-size: 0.875rem;
+        }
+
+        /* Main Content Styles */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: var(--dark-bg);
+        }
+
+        .main-content-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 2rem 2rem 0 2rem;
+        }
+
+        /* Welcome Page */
+        .welcome-section {
+            max-width: 900px;
+            margin: 0 auto;
+            padding-bottom: 2rem;
+        }
+
+        .welcome-hero {
+            background: var(--gradient-primary);
+            border-radius: 1rem;
+            padding: 3rem 2rem;
+            text-align: center;
+            margin-bottom: 2rem;
+            box-shadow: var(--shadow-xl);
+        }
+
+        .welcome-hero h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            color: white;
+        }
+
+        .welcome-hero p {
+            font-size: 1.25rem;
+            color: rgba(255, 255, 255, 0.95);
+            margin-bottom: 0;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+
+        .feature-card {
+            background: var(--dark-card);
+            border: 1px solid var(--dark-border);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            transition: all 0.2s ease;
+        }
+
+        .feature-card:hover {
+            border-color: var(--primary-color);
+            box-shadow: var(--shadow-lg);
+            transform: translateY(-2px);
+        }
+
+        .feature-icon {
+            width: 48px;
+            height: 48px;
+            background: rgba(0, 173, 216, 0.1);
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1rem;
+        }
+
+        .feature-icon i {
+            font-size: 1.5rem;
+            color: var(--primary-color);
+        }
+
+        .feature-card h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: var(--text-primary);
+        }
+
+        .feature-card p {
+            color: var(--text-secondary);
+            line-height: 1.6;
+            margin: 0;
+        }
+
+        .code-section {
+            background: var(--dark-card);
+            border: 1px solid var(--dark-border);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin: 2rem 0;
+        }
+
+        .code-section h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        .install-code {
+            background: var(--code-bg);
+            border: 1px solid var(--dark-border);
+            border-radius: 0.5rem;
+            padding: 1rem 1.5rem;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--primary-color);
+            font-size: 1.05rem;
+            margin: 1rem 0;
+        }
+
+        /* Example Page */
+        .examples-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding-bottom: 2rem;
+        }
+
+        .example-section {
+            max-width: 1200px;
+            margin: 0 auto 2rem;
+            padding-bottom: 2rem;
+            border-bottom: 2px solid var(--dark-border);
+            scroll-margin-top: 100px; /* Offset for scrollspy and breathing room */
+        }
+
+        .example-section:first-child {
+            padding-top: 0;
+        }
+
+        .example-section:last-child {
+            margin-bottom: 0;
+            border-bottom: none;
+        }
+
+        .example-header {
+            margin-bottom: 2rem;
+        }
+
+        .example-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin: 0 0 0.75rem 0;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .example-title i {
+            color: var(--primary-color);
+            font-size: 1.75rem;
+        }
+
+        .example-short-description {
+            font-size: 1rem;
+            color: var(--text-muted);
+            margin: 0 0 0.5rem 0;
+            font-style: italic;
+        }
+
+        .example-intro {
+            background: var(--dark-card);
+            border: 1px solid var(--dark-border);
+            border-radius: 0.75rem;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .example-intro p {
+            font-size: 1.125rem;
+            line-height: 1.8;
+            color: var(--text-secondary);
+            margin: 0;
+        }
+
+        .code-card {
+            background: var(--dark-card);
+            border: 1px solid var(--dark-border);
+            border-radius: 0.75rem;
+            overflow: hidden;
+            box-shadow: var(--shadow-lg);
+            margin-bottom: 2rem;
+        }
+
+        .code-header {
+            background: var(--gradient-primary);
+            color: white;
+            padding: 1rem 1.5rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .code-header-title {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 1.125rem;
+        }
+
+        .code-header i {
+            font-size: 1.125rem;
+        }
+
+        .code-body {
+            position: relative;
+        }
+
+        .code-pre {
+            margin: 0;
+            padding: 1.5rem;
+            background: var(--code-bg);
+            color: var(--code-text);
+            font-family: 'JetBrains Mono', 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 1rem;
+            line-height: 1.7;
+            overflow-x: auto;
+            border: none;
+        }
+
+        .code-pre code {
+            font-family: 'JetBrains Mono', 'Consolas', 'Monaco', 'Courier New', monospace;
+        }
+
+        .copy-button {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .copy-button:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .copy-button.copied {
+            background: var(--success-color);
+            border-color: var(--success-color);
+        }
+
+        .options-section {
+            background: var(--dark-card);
+            border: 1px solid var(--dark-border);
+            border-radius: 0.75rem;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .options-section h3 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin: 0 0 1.5rem 0;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .option-item {
+            background: rgba(0, 173, 216, 0.05);
+            border: 1px solid var(--dark-border);
+            border-left: 4px solid var(--primary-color);
+            border-radius: 0.5rem;
+            padding: 1.25rem 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .option-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .option-name {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+        }
+
+        .option-type {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+        }
+
+        .option-description {
+            color: var(--text-secondary);
+            line-height: 1.7;
+            font-size: 0.975rem;
+        }
+
+        /* Configuration Page */
+        .config-section {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding-bottom: 2rem;
+        }
+
+        .config-category {
+            margin-bottom: 3rem;
+        }
+
+        .config-category:last-child {
+            margin-bottom: 0;
+        }
+
+        .config-category-header {
+            background: var(--gradient-primary);
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 0.75rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .config-category-header i {
+            font-size: 1.5rem;
+        }
+
+        .config-category-header h2 {
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .config-grid {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .config-item {
+            background: var(--dark-card);
+            border: 1px solid var(--dark-border);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            transition: all 0.2s ease;
+        }
+
+        .config-item:hover {
+            border-color: var(--primary-color);
+            box-shadow: var(--shadow-md);
+        }
+
+        .config-name {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+        }
+
+        .config-type {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+        }
+
+        .config-description {
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        /* Mobile Styles */
+        .mobile-toggle {
+            display: none;
+            position: fixed;
+            top: 1rem;
+            left: 1rem;
+            z-index: 1000;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            box-shadow: var(--shadow-lg);
+            width: 44px;
+            height: 44px;
+        }
+
+        .mobile-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 998;
+        }
+
+        @media (max-width: 768px) {
+            .mobile-toggle {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .sidebar-container {
+                position: fixed;
+                top: 0;
+                left: 0;
+                height: 100vh;
+                z-index: 999;
+                transform: translateX(-100%);
+            }
+
+            .sidebar-container.open {
+                transform: translateX(0);
+            }
+
+            .mobile-overlay.show {
+                display: block;
+            }
+
+            .main-content {
+                width: 100%;
+            }
+
+            .main-content-body {
+                padding: 1rem;
+            }
+
+            .welcome-hero h1 {
+                font-size: 2rem;
+            }
+
+            .welcome-hero p {
+                font-size: 1rem;
+            }
+
+            .feature-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Navigation Bar -->
+    <nav class="top-navbar">
+        <div class="top-navbar-left">
+            <a href="#" class="top-navbar-logo" data-page="welcome">
+                <i class="fas fa-code"></i>
+                <div class="top-navbar-title">
+                    <h1>Easy-HTTP</h1>
+                    <p>Simple & Powerful Go HTTP Client</p>
+                </div>
+            </a>
+        </div>
+        <div class="top-navbar-right">
+            <div class="theme-selector">
+                <button class="theme-button active" data-theme="dark">
+                    <i class="fas fa-moon"></i>
+                    Dark
+                </button>
+                <button class="theme-button" data-theme="light">
+                    <i class="fas fa-sun"></i>
+                    Light
+                </button>
+                <button class="theme-button" data-theme="high-contrast">
+                    <i class="fas fa-adjust"></i>
+                    High Contrast
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <button class="mobile-toggle" id="mobileToggle">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+
+    <main>
+        <aside class="sidebar-container" id="sidebar">
+            <nav class="sidebar-content">
+                <ul class="sidebar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#" data-page="welcome">
+                            <i class="fas fa-home"></i>
+                            <span>Welcome</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" data-page="config">
+                            <i class="fas fa-cog"></i>
+                            <span>Configuration</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+            <div class="sidebar-footer">
+                <a href="{{.GithubRepo}}" class="sidebar-footer-link" target="_blank" rel="noopener" title="View on GitHub">
+                    <i class="fab fa-github"></i>
+                    GitHub
+                </a>
+                <a href="https://pkg.go.dev/github.com/bdpiprava/easy-http" class="sidebar-footer-link" target="_blank" rel="noopener" title="Go Package Documentation">
+                    <i class="fas fa-book"></i>
+                    Docs
+                </a>
+            </div>
+        </aside>
+
+        <div class="main-content">
+            <div class="main-content-body" id="mainContent">
+                <!-- Content will be dynamically loaded here -->
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Data from server
+        const examples = {{.Examples}} || [];
+        const configOptions = {{.ConfigOptions}} || {};
+
+        // State
+        let currentPage = 'welcome';
+        let currentTheme = 'dark';
+
+        // Theme management
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            setTheme(savedTheme);
+        }
+
+        function setTheme(theme) {
+            currentTheme = theme;
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('theme', theme);
+
+            // Update button states
+            document.querySelectorAll('.theme-button').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.dataset.theme === theme) {
+                    btn.classList.add('active');
+                }
+            });
+
+            // Update highlight.js theme
+            const highlightTheme = document.querySelector('link[href*="highlight.js"]');
+            if (theme === 'light') {
+                highlightTheme.href = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css';
+            } else {
+                highlightTheme.href = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';
+            }
+        }
+
+        // Initialize theme switcher
+        function initThemeSwitcher() {
+            document.querySelectorAll('.theme-button').forEach(button => {
+                button.addEventListener('click', () => {
+                    setTheme(button.dataset.theme);
+                });
+            });
+        }
+
+        // Initialize mobile menu
+        function initMobileMenu() {
+            const toggle = document.getElementById('mobileToggle');
+            const overlay = document.getElementById('mobileOverlay');
+            const sidebar = document.getElementById('sidebar');
+
+            toggle.addEventListener('click', () => {
+                sidebar.classList.add('open');
+                overlay.classList.add('show');
+            });
+
+            overlay.addEventListener('click', () => {
+                sidebar.classList.remove('open');
+                overlay.classList.remove('show');
+            });
+        }
+
+        // Close mobile menu
+        function closeMobileMenu() {
+            document.getElementById('sidebar').classList.remove('open');
+            document.getElementById('mobileOverlay').classList.remove('show');
+        }
+
+        // Copy code to clipboard
+        function copyCode(button) {
+            const codeBlock = button.closest('.code-card').querySelector('code');
+            const code = codeBlock.textContent;
+
+            navigator.clipboard.writeText(code).then(() => {
+                const originalHTML = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                button.classList.add('copied');
+
+                setTimeout(() => {
+                    button.innerHTML = originalHTML;
+                    button.classList.remove('copied');
+                }, 2000);
+            });
+        }
+
+        // Render welcome page
+        function renderWelcome() {
+            document.getElementById('mainContent').innerHTML = `
+                <div class="welcome-section">
+                    <div class="welcome-hero">
+                        <h1>🚀 Easy-HTTP</h1>
+                        <p>A simple, powerful, and resilient HTTP client library for Go with built-in retry, circuit breaker, caching, and comprehensive testing utilities.</p>
+                    </div>
+
+                    <div class="code-section">
+                        <h3><i class="fas fa-download"></i> Installation</h3>
+                        <div class="install-code">
+                            go get github.com/bdpiprava/easy-http
+                        </div>
+                    </div>
+
+                    <h2 style="margin: 2rem 0 1rem; color: var(--text-primary); font-size: 1.75rem; font-weight: 700;">Features</h2>
+                    <div class="feature-grid">
+                        <div class="feature-card">
+                            <div class="feature-icon">
+                                <i class="fas fa-bolt"></i>
+                            </div>
+                            <h3>Simple & Intuitive</h3>
+                            <p>Fluent API with generic type support for type-safe requests. Make HTTP calls with minimal boilerplate.</p>
+                        </div>
+
+                        <div class="feature-card">
+                            <div class="feature-icon">
+                                <i class="fas fa-shield-alt"></i>
+                            </div>
+                            <h3>Resilience Patterns</h3>
+                            <p>Built-in retry policies, circuit breaker, and rate limiting to handle failures gracefully.</p>
+                        </div>
+
+                        <div class="feature-card">
+                            <div class="feature-icon">
+                                <i class="fas fa-layer-group"></i>
+                            </div>
+                            <h3>Middleware Support</h3>
+                            <p>Flexible middleware system for authentication, logging, metrics, and custom request/response handling.</p>
+                        </div>
+
+                        <div class="feature-card">
+                            <div class="feature-icon">
+                                <i class="fas fa-database"></i>
+                            </div>
+                            <h3>HTTP Caching</h3>
+                            <p>Automatic HTTP caching that respects standard cache headers for improved performance.</p>
+                        </div>
+
+                        <div class="feature-card">
+                            <div class="feature-icon">
+                                <i class="fas fa-vial"></i>
+                            </div>
+                            <h3>Testing Utilities</h3>
+                            <p>Comprehensive mock server with fluent API for testing HTTP clients and services.</p>
+                        </div>
+
+                        <div class="feature-card">
+                            <div class="feature-icon">
+                                <i class="fas fa-chart-line"></i>
+                            </div>
+                            <h3>Observability</h3>
+                            <p>Built-in support for OpenTelemetry tracing and Prometheus metrics out of the box.</p>
+                        </div>
+                    </div>
+
+                    <div class="code-section">
+                        <h3><i class="fas fa-rocket"></i> Quick Start</h3>
+                        <pre class="code-pre"><code class="language-go">// Simple GET request with automatic JSON unmarshaling
+response, err := httpx.GET[map[string]any](
+    httpx.WithBaseURL("https://api.example.com"),
+    httpx.WithPath("/users/1"),
+)
+
+if err != nil {
+    log.Fatal(err)
+}
+
+fmt.Printf("Status: %d\\n", response.StatusCode)
+fmt.Printf("Body: %+v\\n", response.Body)</code></pre>
+                    </div>
+
+                    <div style="margin-top: 3rem; padding: 2rem; background: var(--dark-card); border-radius: 0.75rem; border: 1px solid var(--dark-border); text-align: center;">
+                        <h3 style="margin-bottom: 1rem; color: var(--text-primary);">
+                            <i class="fas fa-arrow-left"></i>
+                            Explore Examples
+                        </h3>
+                        <p style="color: var(--text-secondary); margin: 0;">
+                            Check out the sidebar for comprehensive examples covering all features from basic usage to production patterns.
+                        </p>
+                    </div>
+                </div>
+            `;
+
+            hljs.highlightAll();
+            currentPage = 'welcome';
+        }
+
+        // Render all examples as a single scrollable page
+        function renderAllExamples() {
+            let html = '<div class="examples-container">';
+
+            examples.forEach((example, idx) => {
+                const iconClass = ['fa-github', 'fa-google', 'fa-facebook', 'fa-twitter'].includes(example.icon) ? 'fab' : 'fas';
+
+                const optionsHtml = example.options && example.options.length > 0 ? `
+                    <div class="options-section">
+                        <h3>
+                            <i class="fas fa-sliders-h"></i>
+                            Configuration Options Used
+                        </h3>
+                        ${example.options.map(opt => `
+                            <div class="option-item">
+                                <div class="option-name">${opt.name}</div>
+                                <div class="option-type">Type: ${opt.type}</div>
+                                <div class="option-description">${opt.description}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : '';
+
+                html += `
+                    <div class="example-section" id="example-${idx}" data-example-idx="${idx}" data-example-name="${example.name}" data-example-description="${example.description}">
+                        <div class="example-header">
+                            <h2 class="example-title">
+                                <i class="${iconClass} ${example.icon || 'fa-code'}"></i>
+                                ${example.name}
+                            </h2>
+                            <p class="example-short-description">${example.description}</p>
+                        </div>
+
+                        <div class="example-intro">
+                            <p>${example.fullDescription || example.description}</p>
+                        </div>
+
+                        <div class="code-card">
+                            <div class="code-header">
+                                <div class="code-header-title">
+                                    <i class="fas fa-code"></i>
+                                    <span>Example Code</span>
+                                </div>
+                                <button class="copy-button" onclick="copyCode(this)">
+                                    <i class="fas fa-copy"></i>
+                                    Copy
+                                </button>
+                            </div>
+                            <div class="code-body">
+                                <pre class="code-pre"><code class="language-go">${example.code}</code></pre>
+                            </div>
+                        </div>
+
+                        ${optionsHtml}
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+
+            document.getElementById('mainContent').innerHTML = html;
+
+            hljs.highlightAll();
+            setupScrollSpy();
+            currentPage = 'examples';
+        }
+
+        // Setup IntersectionObserver for scroll spy
+        function setupScrollSpy() {
+            const options = {
+                root: document.querySelector('.main-content-body'),
+                rootMargin: '-80px 0px -80%',
+                threshold: 0
+            };
+
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const idx = entry.target.dataset.exampleIdx;
+                        const name = entry.target.dataset.exampleName;
+                        const description = entry.target.dataset.exampleDescription;
+
+                        // Update sidebar active state
+                        document.querySelectorAll('.sidebar-nav .nav-link').forEach(link => {
+                            link.classList.remove('active');
+                        });
+                        document.querySelector(`.example_${idx}`)?.classList.add('active');
+                    }
+                });
+            }, options);
+
+            // Observe all example sections
+            document.querySelectorAll('.example-section').forEach(section => {
+                observer.observe(section);
+            });
+        }
+
+        // Render configuration page
+        function renderConfiguration() {
+            // Categorize config options
+            const categories = {
+                'Client Configuration': ['WithDefaultBaseURL', 'WithDefaultTimeout', 'WithDefaultHeader', 'WithDefaultHeaders', 'WithClientLogger', 'WithClientLogLevel'],
+                'Request Configuration': ['WithBaseURL', 'WithPath', 'WithQueryParam', 'WithQueryParams', 'WithHeader', 'WithHeaders', 'WithJSONBody', 'WithBody', 'WithContext', 'WithStreaming'],
+                'Authentication': ['WithBasicAuth', 'WithBearerToken', 'WithAPIKey', 'WithHTTPBasicAuth', 'WithHTTPBearerToken', 'WithAPIKeyName', 'WithAPIKeyLocation', 'WithAPIKeyHeader', 'WithAPIKeyQuery', 'WithAPIKeyCookie'],
+                'Resilience Patterns': ['WithClientDefaultRetryPolicy', 'WithClientRetryPolicy', 'DefaultRetryPolicy', 'AggressiveRetryPolicy', 'ConservativeRetryPolicy', 'WithClientDefaultCircuitBreaker', 'WithClientCircuitBreaker', 'DefaultCircuitBreakerConfig', 'AggressiveCircuitBreakerConfig', 'ConservativeCircuitBreakerConfig'],
+                'Caching & Performance': ['WithClientDefaultCache'],
+                'Middleware': ['WithClientMiddleware', 'WithClientMiddlewares'],
+                'Proxy & Network': ['WithHTTPProxy', 'WithHTTPSProxy', 'WithSOCKS5Proxy', 'WithProxyAuth'],
+                'Cookie Management': ['WithCookie', 'WithCookies', 'WithCookieJar'],
+                'Observability': ['WithTracing'],
+                'Convenience Methods': ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
+            };
+
+            const categoryIcons = {
+                'Client Configuration': 'fa-cog',
+                'Request Configuration': 'fa-paper-plane',
+                'Authentication': 'fa-lock',
+                'Resilience Patterns': 'fa-sync',
+                'Caching & Performance': 'fa-tachometer-alt',
+                'Middleware': 'fa-layer-group',
+                'Proxy & Network': 'fa-network-wired',
+                'Cookie Management': 'fa-cookie',
+                'Observability': 'fa-chart-line',
+                'Convenience Methods': 'fa-magic'
+            };
+
+            let html = '<div class="config-section">';
+
+            for (const [category, optionKeys] of Object.entries(categories)) {
+                const icon = categoryIcons[category] || 'fa-cog';
+                html += `
+                    <div class="config-category">
+                        <div class="config-category-header">
+                            <i class="fas ${icon}"></i>
+                            <h2>${category}</h2>
+                        </div>
+                        <div class="config-grid">
+                `;
+
+                optionKeys.forEach(key => {
+                    const option = configOptions[key];
+                    if (option) {
+                        html += `
+                            <div class="config-item">
+                                <div class="config-name">${option.name}</div>
+                                <div class="config-type">Type: ${option.type}</div>
+                                <div class="config-description">${option.description}</div>
+                            </div>
+                        `;
+                    }
+                });
+
+                html += `
+                        </div>
+                    </div>
+                `;
+            }
+
+            html += '</div>';
+
+            document.getElementById('mainContent').innerHTML = html;
+
+            // Update sidebar active state
+            document.querySelectorAll('.sidebar-nav .nav-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            document.querySelector('.nav-link[data-page="config"]')?.classList.add('active');
+
+            closeMobileMenu();
+            currentPage = 'config';
+        }
+
+        // Get or create category
+        const categoryMap = {};
+        function getOrCreateCategory(categoryName, categoryIcon) {
+            if (categoryMap[categoryName]) {
+                return categoryMap[categoryName];
+            }
+
+            const sidebar = document.querySelector('.sidebar-nav');
+            const categoryDiv = document.createElement('div');
+            categoryDiv.classList.add('nav-category');
+
+            const header = document.createElement('div');
+            header.classList.add('category-header');
+
+            const icon = document.createElement('i');
+            icon.classList.add('fas', categoryIcon || 'fa-folder', 'category-icon');
+
+            const title = document.createElement('span');
+            title.textContent = categoryName;
+
+            const chevron = document.createElement('i');
+            chevron.classList.add('fas', 'fa-chevron-right', 'chevron');
+
+            header.appendChild(icon);
+            header.appendChild(title);
+            header.appendChild(chevron);
+
+            const itemsContainer = document.createElement('div');
+            itemsContainer.classList.add('category-items');
+
+            // Toggle category
+            header.addEventListener('click', () => {
+                header.classList.toggle('expanded');
+                itemsContainer.classList.toggle('expanded');
+            });
+
+            categoryDiv.appendChild(header);
+            categoryDiv.appendChild(itemsContainer);
+            sidebar.appendChild(categoryDiv);
+
+            categoryMap[categoryName] = itemsContainer;
+            return itemsContainer;
+        }
+
+        // Add example to sidebar
+        function addExampleToSidebar(example, idx) {
+            const li = document.createElement('li');
+            li.classList.add('nav-item');
+
+            const a = document.createElement('a');
+            a.classList.add('nav-link', `example_${idx}`);
+            a.href = '#';
+
+            const icon = document.createElement('i');
+            const brandIcons = ['fa-github', 'fa-google', 'fa-facebook', 'fa-twitter'];
+            const iconClass = brandIcons.includes(example.icon) ? 'fab' : 'fas';
+            icon.classList.add(iconClass, example.icon || 'fa-play-circle');
+
+            const span = document.createElement('span');
+            span.textContent = example.name;
+
+            a.appendChild(icon);
+            a.appendChild(span);
+            li.appendChild(a);
+
+            a.addEventListener('click', (e) => {
+                e.preventDefault();
+
+                // If on examples page, scroll to example
+                if (currentPage === 'examples') {
+                    const targetSection = document.getElementById(`example-${idx}`);
+                    if (targetSection) {
+                        targetSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        closeMobileMenu();
+                    }
+                } else {
+                    // Render all examples then scroll to specific one
+                    renderAllExamples();
+                    setTimeout(() => {
+                        const targetSection = document.getElementById(`example-${idx}`);
+                        if (targetSection) {
+                            targetSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            closeMobileMenu();
+                        }
+                    }, 100);
+                }
+            });
+
+            if (example.category) {
+                const categoryContainer = getOrCreateCategory(example.category, example.categoryIcon || 'fa-folder');
+                categoryContainer.appendChild(li);
+            } else {
+                document.querySelector('.sidebar-nav').appendChild(li);
+            }
+        }
+
+        // Initialize navigation
+        function initNavigation() {
+            // Welcome and Config links
+            document.querySelectorAll('.sidebar-nav .nav-link[data-page], .top-navbar-logo[data-page]').forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const page = link.dataset.page;
+
+                    if (page === 'welcome') {
+                        renderWelcome();
+                    } else if (page === 'config') {
+                        renderConfiguration();
+                    }
+
+                    // Update active state
+                    document.querySelectorAll('.sidebar-nav .nav-link').forEach(l => l.classList.remove('active'));
+                    if (link.classList.contains('nav-link')) {
+                        link.classList.add('active');
+                    } else {
+                        // If clicking logo, activate welcome link in sidebar
+                        document.querySelector('.sidebar-nav .nav-link[data-page="welcome"]')?.classList.add('active');
+                    }
+                    closeMobileMenu();
+                });
+            });
+        }
+
+        // Initialize
+        function init() {
+            try {
+                initTheme();
+                initThemeSwitcher();
+                initMobileMenu();
+                initNavigation();
+
+                if (!examples || examples.length === 0) {
+                    document.querySelector('.sidebar-nav').innerHTML += `
+                        <li class="nav-item">
+                            <div class="nav-link" style="color: var(--text-muted); cursor: default;">
+                                <i class="fas fa-info-circle"></i>
+                                <span>No examples available</span>
+                            </div>
+                        </li>
+                    `;
+                } else {
+                    examples.forEach((example, idx) => {
+                        addExampleToSidebar(example, idx);
+                    });
+
+                    // Expand first category
+                    setTimeout(() => {
+                        const firstCategory = document.querySelector('.category-header');
+                        if (firstCategory) {
+                            firstCategory.click();
+                        }
+                    }, 50);
+                }
+
+                // Render welcome page initially
+                renderWelcome();
+
+            } catch (error) {
+                console.error('Error initializing application:', error);
+            }
+        }
+
+        // Run on load
+        (function() {
+            window.copyCode = copyCode;
+            init();
+        })();
+    </script>
+</body>
+</html>

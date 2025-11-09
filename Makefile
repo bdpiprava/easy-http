@@ -26,3 +26,10 @@ deps:
 ## Install the binary
 install:
 	@go install ${REPO}
+
+## Generate static documentation
+generate-doc:
+	@echo "$(OK_COLOR)==> Generating documentation...$(NO_COLOR)"
+	@mkdir -p ${BUILD_DIR}/docs
+	@go run ./docs/main.go -generate
+	@echo "$(OK_COLOR)==> Documentation generated in ${BUILD_DIR}/docs$(NO_COLOR)"
