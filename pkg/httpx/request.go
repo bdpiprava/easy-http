@@ -193,6 +193,37 @@ func WithFormFields(fields map[string]string) RequestOption {
 	}
 }
 
+// WithMultipartForm is a function that sets a multipart/form-data body for the request
+func WithMultipartForm(builder *MultipartFormBuilder) RequestOption {
+	return func(c *RequestOptions) {
+		if builder == nil {
+			c.Error = errors.New("multipart form builder cannot be nil")
+			return
+		}
+
+		reader, contentType, err := builder.Build()
+		if err != nil {
+			c.Error = errors.Wrap(err, "failed to build multipart form")
+			return
+		}
+
+		c.Headers.Set("Content-Type", contentType)
+		c.Body = reader
+	}
+}
+
+// WithFile is a convenience function for single file uploads
+func WithFile(fieldName, filePath string) RequestOption {
+	return func(c *RequestOptions) {
+		builder := NewMultipartFormBuilder()
+		if err := builder.AddFileFromPath(fieldName, filePath); err != nil {
+			c.Error = errors.Wrapf(err, "failed to add file from path: %s", filePath)
+			return
+		}
+		WithMultipartForm(builder)(c)
+	}
+}
+
 // WithBasicAuth is a function that sets basic authentication for the request
 func WithBasicAuth(username, password string) RequestOption {
 	return func(c *RequestOptions) {
