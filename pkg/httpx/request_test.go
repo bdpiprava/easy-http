@@ -53,6 +53,57 @@ func (s *RequestTestSuite) Test_PUT() {
 	s.run(getTestCases("PUT"), httpx.PUT[map[string]any])
 }
 
+func (s *RequestTestSuite) Test_PATCH() {
+	s.run(getTestCases("PATCH"), httpx.PATCH[map[string]any])
+}
+
+func (s *RequestTestSuite) Test_HEAD() {
+	mockServer := NewMockServer()
+	defer mockServer.Close()
+
+	testCases := []struct {
+		name           string
+		serverStatus   int
+		wantStatusCode int
+	}{
+		{
+			name:           "HEAD request with 200 status code",
+			serverStatus:   200,
+			wantStatusCode: 200,
+		},
+		{
+			name:           "HEAD request with 404 status code",
+			serverStatus:   404,
+			wantStatusCode: 404,
+		},
+		{
+			name:           "HEAD request with 500 status code",
+			serverStatus:   500,
+			wantStatusCode: 500,
+		},
+	}
+
+	for _, tc := range testCases {
+		s.Run(tc.name, func() {
+			randomID := uuid.New().String()
+			// HEAD responses don't have bodies, only headers and status
+			mockServer.SetupMock("HEAD", "/api/v1/"+randomID, tc.serverStatus, "")
+
+			resp, err := httpx.HEAD[string](
+				httpx.WithBaseURL(mockServer.GetURL()),
+				httpx.WithPath("/api/v1", randomID),
+				httpx.WithQueryParam("region", "us"),
+				httpx.WithHeader("Authorization", "Bearer abcd"),
+			)
+
+			s.Require().NoError(err)
+			s.Require().Equal(tc.wantStatusCode, resp.StatusCode)
+			// HEAD requests should not have a body
+			s.Require().Empty(resp.RawBody)
+		})
+	}
+}
+
 func (s *RequestTestSuite) run(testCases []testCase, caller func(opts ...httpx.RequestOption) (*httpx.Response, error)) {
 	mockServer := NewMockServer()
 	defer mockServer.Close()

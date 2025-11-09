@@ -205,6 +205,18 @@ func DELETE[T any](opts ...RequestOption) (*Response, error) {
 	return defaultClient.Execute(*req, *(new(T)))
 }
 
+// PATCH is a function that sends a PATCH request
+func PATCH[T any](opts ...RequestOption) (*Response, error) {
+	req := NewRequest(http.MethodPatch, opts...)
+	return defaultClient.Execute(*req, *(new(T)))
+}
+
+// HEAD is a function that sends a HEAD request
+func HEAD[T any](opts ...RequestOption) (*Response, error) {
+	req := NewRequest(http.MethodHead, opts...)
+	return defaultClient.Execute(*req, *(new(T)))
+}
+
 // ToHTTPReq is a function that converts the request to an native http request
 func (r *Request) ToHTTPReq(clientOpts ClientOptions) (*http.Request, error) {
 	opts := buildOpts(clientOpts, r)
